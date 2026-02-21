@@ -75,6 +75,11 @@ class StartClaudeReviewAction : AnAction() {
                 for (parsed in parsedFiles) {
                     indicator.text = "Reading ${parsed.newPath}\u2026"
 
+                    if (isBinaryFile(rootPath, parsed.newPath)) {
+                        fileDiffs.add(FileDiff(parsed.newPath, "(binary file)", "(binary file)", parsed.status))
+                        continue
+                    }
+
                     val oldContent = when (parsed.status) {
                         FileStatus.NEW -> ""
                         FileStatus.DELETED -> getOldContent(project, repo.root, parsed.oldPath ?: parsed.newPath)
@@ -99,6 +104,11 @@ class StartClaudeReviewAction : AnAction() {
 
                     val fileOnDisk = java.io.File(rootPath, untrackedPath)
                     if (!fileOnDisk.isFile) continue
+
+                    if (isBinaryFile(rootPath, untrackedPath)) {
+                        fileDiffs.add(FileDiff(untrackedPath, "", "(binary file)", FileStatus.NEW))
+                        continue
+                    }
 
                     val newContent = readWorkingDirFile(rootPath, untrackedPath)
                     fileDiffs.add(FileDiff(untrackedPath, "", newContent, FileStatus.NEW))
@@ -136,6 +146,17 @@ class StartClaudeReviewAction : AnAction() {
         } catch (e: Exception) {
             LOG.warn("Failed to read working directory file $filePath: ${e.message}")
             ""
+        }
+    }
+
+    private fun isBinaryFile(rootPath: String, filePath: String): Boolean {
+        val file = java.io.File(rootPath, filePath)
+        if (!file.exists() || !file.isFile) return false
+        return try {
+            val bytes = file.inputStream().use { it.readNBytes(8192) }
+            bytes.any { it == 0.toByte() }
+        } catch (e: Exception) {
+            false
         }
     }
 
