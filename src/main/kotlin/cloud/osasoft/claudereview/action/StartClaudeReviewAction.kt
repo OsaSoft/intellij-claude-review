@@ -53,8 +53,15 @@ class StartClaudeReviewAction : AnAction() {
                     return
                 }
 
-                val diffOutput = diffResult.outputAsJoinedString
-                val statusOutput = statusResult.outputAsJoinedString
+                if (!diffResult.success()) {
+                    LOG.warn("git diff HEAD failed (may be a fresh repo with no commits): ${diffResult.errorOutputAsJoinedString}")
+                }
+                if (!statusResult.success()) {
+                    LOG.warn("git status --porcelain failed: ${statusResult.errorOutputAsJoinedString}")
+                }
+
+                val diffOutput = if (diffResult.success()) diffResult.outputAsJoinedString else ""
+                val statusOutput = if (statusResult.success()) statusResult.outputAsJoinedString else ""
 
                 LOG.info("Git diff HEAD collected: ${diffOutput.length} chars")
                 LOG.info("Git status collected: ${statusOutput.length} chars")
@@ -68,8 +75,11 @@ class StartClaudeReviewAction : AnAction() {
 
                 val parsedFiles = DiffParser.parseChangedFiles(diffOutput)
                 val untrackedPaths = DiffParser.parseUntrackedFiles(statusOutput)
+                val stagedNewPaths = DiffParser.parseStagedNewFiles(statusOutput)
                 val rootPath = repo.root.path
                 val fileDiffs = mutableListOf<FileDiff>()
+
+                LOG.debug("Parsed sources: ${parsedFiles.size} from diff, ${untrackedPaths.size} untracked, ${stagedNewPaths.size} staged-new")
 
                 // Process tracked changed files from diff output
                 for (parsed in parsedFiles) {
@@ -95,10 +105,12 @@ class StartClaudeReviewAction : AnAction() {
                     fileDiffs.add(FileDiff(parsed.newPath, oldContent, newContent, parsed.status))
                 }
 
-                // Process untracked files (new files not yet staged)
+                // Process untracked + staged new files not already covered by diff
                 val alreadyTracked = parsedFiles.map { it.newPath }.toSet()
-                for (untrackedPath in untrackedPaths) {
-                    if (untrackedPath in alreadyTracked) continue
+                val additionalNewPaths = (untrackedPaths + stagedNewPaths)
+                    .distinct()
+                    .filter { it !in alreadyTracked }
+                for (untrackedPath in additionalNewPaths) {
 
                     indicator.text = "Reading $untrackedPath\u2026"
 

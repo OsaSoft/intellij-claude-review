@@ -175,4 +175,121 @@ class DiffParserTest {
 
         assertTrue(DiffParser.parseUntrackedFiles(statusOutput).isEmpty())
     }
+
+    // --- parseStagedNewFiles tests ---
+
+    @Test
+    fun `parseStagedNewFiles extracts A and AM status files`() {
+        val statusOutput = "A  src/NewFile.kt\nAM src/EditedAfterAdd.kt\nM  src/Modified.kt\n?? src/Untracked.kt"
+
+        val result = DiffParser.parseStagedNewFiles(statusOutput)
+
+        assertEquals(2, result.size)
+        assertEquals("src/NewFile.kt", result[0])
+        assertEquals("src/EditedAfterAdd.kt", result[1])
+    }
+
+    @Test
+    fun `parseStagedNewFiles returns empty when no staged files`() {
+        val statusOutput = "M  src/Modified.kt\n?? src/Untracked.kt"
+
+        assertTrue(DiffParser.parseStagedNewFiles(statusOutput).isEmpty())
+    }
+
+    @Test
+    fun `parseStagedNewFiles handles blank input`() {
+        assertTrue(DiffParser.parseStagedNewFiles("").isEmpty())
+        assertTrue(DiffParser.parseStagedNewFiles("   ").isEmpty())
+        assertTrue(DiffParser.parseStagedNewFiles("\n\n").isEmpty())
+    }
+
+    @Test
+    fun `parseStagedNewFiles strips trailing slash`() {
+        val statusOutput = "A  src/newdir/"
+
+        val result = DiffParser.parseStagedNewFiles(statusOutput)
+
+        assertEquals(1, result.size)
+        assertEquals("src/newdir", result[0])
+    }
+
+    // --- Combined pipeline integration tests ---
+
+    @Test
+    fun `staged new files captured when diff output is empty (no-HEAD scenario)`() {
+        val diffOutput = ""
+        val statusOutput = "A  src/FirstFile.kt\nA  src/SecondFile.kt"
+
+        val parsedFiles = DiffParser.parseChangedFiles(diffOutput)
+        val untrackedPaths = DiffParser.parseUntrackedFiles(statusOutput)
+        val stagedNewPaths = DiffParser.parseStagedNewFiles(statusOutput)
+
+        val alreadyTracked = parsedFiles.map { it.newPath }.toSet()
+        val additionalNewPaths = (untrackedPaths + stagedNewPaths)
+            .distinct()
+            .filter { it !in alreadyTracked }
+
+        assertTrue(parsedFiles.isEmpty())
+        assertEquals(2, additionalNewPaths.size)
+        assertEquals("src/FirstFile.kt", additionalNewPaths[0])
+        assertEquals("src/SecondFile.kt", additionalNewPaths[1])
+    }
+
+    @Test
+    fun `staged new files deduplicated against diff output`() {
+        // Simulate: git diff HEAD shows the file as new, status also shows it as A
+        val diffOutput = """
+            diff --git a/src/NewFile.kt b/src/NewFile.kt
+            new file mode 100644
+            index 0000000..abc1234
+            --- /dev/null
+            +++ b/src/NewFile.kt
+            @@ -0,0 +1,3 @@
+            +package example
+        """.trimIndent()
+        val statusOutput = "A  src/NewFile.kt"
+
+        val parsedFiles = DiffParser.parseChangedFiles(diffOutput)
+        val untrackedPaths = DiffParser.parseUntrackedFiles(statusOutput)
+        val stagedNewPaths = DiffParser.parseStagedNewFiles(statusOutput)
+
+        val alreadyTracked = parsedFiles.map { it.newPath }.toSet()
+        val additionalNewPaths = (untrackedPaths + stagedNewPaths)
+            .distinct()
+            .filter { it !in alreadyTracked }
+
+        assertEquals(1, parsedFiles.size)
+        assertEquals("src/NewFile.kt", parsedFiles[0].newPath)
+        assertTrue("Staged file already in diff should be deduplicated", additionalNewPaths.isEmpty())
+    }
+
+    @Test
+    fun `mixed scenario - diff modified files plus status staged-new and untracked`() {
+        val diffOutput = """
+            diff --git a/src/Existing.kt b/src/Existing.kt
+            index abc1234..def5678 100644
+            --- a/src/Existing.kt
+            +++ b/src/Existing.kt
+            @@ -1,3 +1,4 @@
+             fun main() {
+            +    println("hello")
+             }
+        """.trimIndent()
+        val statusOutput = "M  src/Existing.kt\nA  src/Staged.kt\n?? src/Untracked.kt"
+
+        val parsedFiles = DiffParser.parseChangedFiles(diffOutput)
+        val untrackedPaths = DiffParser.parseUntrackedFiles(statusOutput)
+        val stagedNewPaths = DiffParser.parseStagedNewFiles(statusOutput)
+
+        val alreadyTracked = parsedFiles.map { it.newPath }.toSet()
+        val additionalNewPaths = (untrackedPaths + stagedNewPaths)
+            .distinct()
+            .filter { it !in alreadyTracked }
+
+        assertEquals(1, parsedFiles.size)
+        assertEquals(FileStatus.MODIFIED, parsedFiles[0].status)
+        assertEquals(2, additionalNewPaths.size)
+        assertTrue(additionalNewPaths.contains("src/Staged.kt"))
+        assertTrue(additionalNewPaths.contains("src/Untracked.kt"))
+    }
 }

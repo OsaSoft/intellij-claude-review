@@ -85,6 +85,18 @@ object DiffParser {
     }
 
     /**
+     * Parse git status --porcelain output to find staged new files.
+     * These are files with index status 'A' (added), including AM and AD variants.
+     * Porcelain format: XY PATH where X=index status, Y=worktree status, column 3+ = path.
+     */
+    fun parseStagedNewFiles(statusOutput: String): List<String> {
+        if (statusOutput.isBlank()) return emptyList()
+        return statusOutput.lines()
+            .filter { it.length >= 3 && it[0] == 'A' }
+            .map { it.substring(3).trimEnd('/') }
+    }
+
+    /**
      * Extract old and new paths from a `diff --git a/X b/Y` line.
      * Strips the `a/` and `b/` prefixes.
      */
