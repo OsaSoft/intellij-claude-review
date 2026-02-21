@@ -75,7 +75,7 @@ class ReviewPanel(private val project: Project) : JPanel(BorderLayout()), Dispos
         }
     }
 
-    fun updateCommentCount() {
+    private fun updateCommentCount() {
         val count = model.getCommentCount()
         val fileCount = model.getCommentedFileCount()
         commentLabel.text = if (count == 0) {
@@ -90,7 +90,11 @@ class ReviewPanel(private val project: Project) : JPanel(BorderLayout()), Dispos
         val factory = DiffContentFactory.getInstance()
 
         val oldContent = factory.create(project, fileDiff.oldContent, fileType)
-        val newContent = factory.create(project, fileDiff.newContent, fileType)
+        val newContent = if (fileDiff.virtualFile != null) {
+            factory.create(project, fileDiff.virtualFile)
+        } else {
+            factory.create(project, fileDiff.newContent, fileType)
+        }
 
         val title = when (fileDiff.status) {
             FileStatus.NEW -> "${fileDiff.filePath} (new)"

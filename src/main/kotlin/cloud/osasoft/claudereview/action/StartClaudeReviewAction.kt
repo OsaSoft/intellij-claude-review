@@ -20,6 +20,7 @@ import com.intellij.openapi.project.Project
 import git4idea.commands.Git
 import git4idea.commands.GitCommand
 import git4idea.commands.GitLineHandler
+import com.intellij.openapi.vfs.LocalFileSystem
 import git4idea.repo.GitRepositoryManager
 
 private val LOG = logger<StartClaudeReviewAction>()
@@ -102,7 +103,13 @@ class StartClaudeReviewAction : AnAction() {
                         else -> readWorkingDirFile(rootPath, parsed.newPath)
                     }
 
-                    fileDiffs.add(FileDiff(parsed.newPath, oldContent, newContent, parsed.status))
+                    val virtualFile = when {
+                        parsed.status == FileStatus.DELETED -> null
+                        isBinaryFile(rootPath, parsed.newPath) -> null
+                        else -> LocalFileSystem.getInstance().refreshAndFindFileByPath("$rootPath/${parsed.newPath}")
+                    }
+
+                    fileDiffs.add(FileDiff(parsed.newPath, oldContent, newContent, parsed.status, virtualFile))
                 }
 
                 // Process untracked + staged new files not already covered by diff
@@ -123,7 +130,8 @@ class StartClaudeReviewAction : AnAction() {
                     }
 
                     val newContent = readWorkingDirFile(rootPath, untrackedPath)
-                    fileDiffs.add(FileDiff(untrackedPath, "", newContent, FileStatus.NEW))
+                    val virtualFile = LocalFileSystem.getInstance().refreshAndFindFileByPath("$rootPath/$untrackedPath")
+                    fileDiffs.add(FileDiff(untrackedPath, "", newContent, FileStatus.NEW, virtualFile))
                 }
 
                 LOG.info("Parsed ${fileDiffs.size} file diffs")
