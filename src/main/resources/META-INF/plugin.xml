@@ -10,6 +10,7 @@
     <extensions defaultExtensionNs="com.intellij">
         <projectService serviceImplementation="cloud.osasoft.claudereview.model.ReviewModel"/>
         <diff.DiffExtension implementation="cloud.osasoft.claudereview.ui.ReviewDiffExtension"/>
+        <fileEditorProvider implementation="cloud.osasoft.claudereview.editor.ReviewFileEditorProvider"/>
         <notificationGroup id="ClaudeReview" displayType="BALLOON"/>
     </extensions>
 

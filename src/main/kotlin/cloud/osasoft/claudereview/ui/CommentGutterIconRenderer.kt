@@ -5,9 +5,12 @@ import cloud.osasoft.claudereview.model.ReviewModel
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.editor.Editor
+import com.intellij.openapi.editor.LogicalPosition
 import com.intellij.openapi.editor.markup.GutterIconRenderer
 import com.intellij.openapi.util.IconLoader
+import java.awt.Point
 import javax.swing.Icon
+import javax.swing.SwingUtilities
 
 class CommentGutterIconRenderer(
     private val comment: LineComment,
@@ -28,7 +31,14 @@ class CommentGutterIconRenderer(
 
     override fun getClickAction(): AnAction = object : AnAction() {
         override fun actionPerformed(e: AnActionEvent) {
-            CommentPopup.show(editor, comment.lineNumber, filePath, comment, model) {
+            val screenPoint = if (editor.contentComponent.isShowing) {
+                val logicalPos = LogicalPosition(comment.lineNumber - 1, 0)
+                val editorPoint = editor.logicalPositionToXY(logicalPos)
+                val point = Point(editorPoint)
+                SwingUtilities.convertPointToScreen(point, editor.contentComponent)
+                point
+            } else null
+            CommentPopup.show(editor, comment.lineNumber, filePath, comment, model, screenPoint) {
                 ReviewDiffExtension.refreshGutterIcons(editor, filePath, model)
             }
         }

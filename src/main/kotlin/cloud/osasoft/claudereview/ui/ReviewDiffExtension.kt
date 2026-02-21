@@ -11,6 +11,7 @@ import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.ex.EditorGutterComponentEx
 import com.intellij.openapi.editor.markup.HighlighterLayer
 import com.intellij.openapi.editor.markup.HighlighterTargetArea
+import com.intellij.openapi.util.Key
 import java.awt.Point
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
@@ -24,10 +25,7 @@ class ReviewDiffExtension : DiffExtension() {
         val project = context.project ?: return
         val model = project.getService(ReviewModel::class.java)
 
-        // Extract file path from the diff request title.
-        // Title format is "path/to/file" or "path/to/file (status)"
-        val title = request.title ?: return
-        val filePath = title.replace(Regex("\\s*\\(.*\\)$"), "")
+        val filePath = request.getUserData(REVIEW_FILE_PATH_KEY) ?: return
 
         // Get the right-side editor (new content / "After" side)
         val editor = viewer.editor2
@@ -47,7 +45,7 @@ class ReviewDiffExtension : DiffExtension() {
                 // Check if there's already a comment on this line
                 val existingComment = model.getComments(filePath).find { it.lineNumber == lineNumber }
 
-                CommentPopup.show(editor, lineNumber, filePath, existingComment, model) {
+                CommentPopup.show(editor, lineNumber, filePath, existingComment, model, e.locationOnScreen) {
                     refreshGutterIcons(editor, filePath, model)
                 }
             }
@@ -58,6 +56,8 @@ class ReviewDiffExtension : DiffExtension() {
     }
 
     companion object {
+        val REVIEW_FILE_PATH_KEY = Key.create<String>("claudereview.filePath")
+
         fun refreshGutterIcons(editor: Editor, filePath: String, model: ReviewModel) {
             val markupModel = editor.markupModel
 

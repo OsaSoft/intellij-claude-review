@@ -12,8 +12,8 @@ import com.intellij.diff.requests.SimpleDiffRequest
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.fileTypes.FileTypeManager
+import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.ui.SimpleToolWindowPanel
 import com.intellij.ui.JBSplitter
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
@@ -29,7 +29,7 @@ import javax.swing.JPanel
 import javax.swing.ListSelectionModel
 import javax.swing.Timer
 
-class ReviewPanel(private val project: Project) : SimpleToolWindowPanel(true, true), Disposable {
+class ReviewPanel(private val project: Project) : JPanel(BorderLayout()), Disposable {
     private val model = project.getService(ReviewModel::class.java)
     private val fileList = JBList<FileDiff>()
     private var diffPanel: DiffRequestPanel? = null
@@ -38,7 +38,7 @@ class ReviewPanel(private val project: Project) : SimpleToolWindowPanel(true, tr
 
     init {
         val toolbar = createToolbar()
-        setToolbar(toolbar)
+        add(toolbar, BorderLayout.NORTH)
 
         val splitter = JBSplitter(false, 0.25f)
 
@@ -54,10 +54,11 @@ class ReviewPanel(private val project: Project) : SimpleToolWindowPanel(true, tr
 
         // Right: diff viewer
         val diffPanelInstance = DiffManager.getInstance().createRequestPanel(project, {}, null)
+        Disposer.register(this, diffPanelInstance)
         diffPanel = diffPanelInstance
         splitter.secondComponent = diffPanelInstance.component
 
-        setContent(splitter)
+        add(splitter, BorderLayout.CENTER)
 
         // Poll comment count every 500ms to keep the label in sync
         commentCountTimer = Timer(500) { updateCommentCount() }
@@ -99,6 +100,7 @@ class ReviewPanel(private val project: Project) : SimpleToolWindowPanel(true, tr
         }
 
         val request = SimpleDiffRequest(title, oldContent, newContent, "Before", "After")
+        request.putUserData(ReviewDiffExtension.REVIEW_FILE_PATH_KEY, fileDiff.filePath)
         diffPanel?.setRequest(request)
     }
 

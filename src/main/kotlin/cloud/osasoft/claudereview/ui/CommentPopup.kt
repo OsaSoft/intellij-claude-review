@@ -3,7 +3,6 @@ package cloud.osasoft.claudereview.ui
 import cloud.osasoft.claudereview.model.LineComment
 import cloud.osasoft.claudereview.model.ReviewModel
 import com.intellij.openapi.editor.Editor
-import com.intellij.openapi.editor.LogicalPosition
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextArea
@@ -29,6 +28,7 @@ object CommentPopup {
         filePath: String,
         existingComment: LineComment?,
         model: ReviewModel,
+        screenPoint: Point? = null,
         onDone: () -> Unit
     ) {
         val panel = JPanel(BorderLayout(8, 8))
@@ -103,17 +103,14 @@ object CommentPopup {
         // Show popup near the line in the editor
         val editorComponent = editor.component
         if (!editorComponent.isShowing) {
-            // Component not yet visible; fall back to showing relative to editor
             popup.showInFocusCenter()
             return
         }
 
-        val logicalPos = LogicalPosition(lineNumber - 1, 0)
-        val point = editor.logicalPositionToXY(logicalPos)
-        val screenPoint = editorComponent.locationOnScreen
-        popup.showInScreenCoordinates(
-            editorComponent,
-            Point(screenPoint.x + point.x + 60, screenPoint.y + point.y)
-        )
+        if (screenPoint != null) {
+            popup.showInScreenCoordinates(editorComponent, Point(screenPoint.x + 20, screenPoint.y))
+        } else {
+            popup.showInFocusCenter()
+        }
     }
 }

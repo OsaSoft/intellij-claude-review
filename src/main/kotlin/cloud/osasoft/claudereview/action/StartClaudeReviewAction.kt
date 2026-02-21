@@ -3,8 +3,9 @@ package cloud.osasoft.claudereview.action
 import cloud.osasoft.claudereview.diff.DiffParser
 import cloud.osasoft.claudereview.model.FileDiff
 import cloud.osasoft.claudereview.model.FileStatus
+import cloud.osasoft.claudereview.editor.ReviewFileEditor
 import cloud.osasoft.claudereview.model.ReviewModel
-import cloud.osasoft.claudereview.ui.ReviewPanel
+import cloud.osasoft.claudereview.vfs.ReviewVirtualFile
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.AnAction
@@ -14,9 +15,8 @@ import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
+import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.wm.ToolWindowAnchor
-import com.intellij.openapi.wm.ToolWindowManager
 import git4idea.commands.Git
 import git4idea.commands.GitCommand
 import git4idea.commands.GitLineHandler
@@ -122,7 +122,7 @@ class StartClaudeReviewAction : AnAction() {
                 model.fileDiffs.addAll(fileDiffs)
 
                 ApplicationManager.getApplication().invokeLater {
-                    openReviewToolWindow(project)
+                    openReviewInEditor(project)
                 }
             }
         })
@@ -160,22 +160,24 @@ class StartClaudeReviewAction : AnAction() {
         }
     }
 
-    private fun openReviewToolWindow(project: Project) {
-        val toolWindowManager = ToolWindowManager.getInstance(project)
-        var toolWindow = toolWindowManager.getToolWindow("Claude Review")
-        if (toolWindow == null) {
-            toolWindow = toolWindowManager.registerToolWindow("Claude Review") {
-                anchor = ToolWindowAnchor.BOTTOM
+    private fun openReviewInEditor(project: Project) {
+        val editorManager = FileEditorManager.getInstance(project)
+
+        // Close any existing review tabs (enforce single session)
+        for (file in editorManager.openFiles) {
+            if (file is ReviewVirtualFile) {
+                editorManager.closeFile(file)
             }
         }
-        val reviewPanel = ReviewPanel(project)
-        reviewPanel.populateFiles()
 
-        val contentManager = toolWindow.contentManager
-        contentManager.removeAllContents(true)
-        val content = contentManager.factory.createContent(reviewPanel, "Review", false)
-        contentManager.addContent(content)
-        toolWindow.show()
+        // Open new review tab in the main editor area
+        val reviewFile = ReviewVirtualFile()
+        editorManager.openFile(reviewFile, true)
+
+        // Get the ReviewFileEditor and populate files
+        val editors = editorManager.getEditors(reviewFile)
+        val reviewEditor = editors.filterIsInstance<ReviewFileEditor>().firstOrNull()
+        reviewEditor?.reviewPanel?.populateFiles()
     }
 
     override fun update(e: AnActionEvent) {
