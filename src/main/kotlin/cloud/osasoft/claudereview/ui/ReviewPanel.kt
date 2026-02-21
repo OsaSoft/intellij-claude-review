@@ -1,5 +1,7 @@
 package cloud.osasoft.claudereview.ui
 
+import cloud.osasoft.claudereview.action.StartClaudeReviewAction
+import cloud.osasoft.claudereview.export.ReviewCompiler
 import cloud.osasoft.claudereview.model.FileDiff
 import cloud.osasoft.claudereview.model.FileStatus
 import cloud.osasoft.claudereview.model.ReviewModel
@@ -7,6 +9,8 @@ import com.intellij.diff.DiffContentFactory
 import com.intellij.diff.DiffManager
 import com.intellij.diff.DiffRequestPanel
 import com.intellij.diff.requests.SimpleDiffRequest
+import com.intellij.notification.NotificationType
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.SimpleToolWindowPanel
@@ -14,6 +18,8 @@ import com.intellij.ui.JBSplitter
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
 import java.awt.BorderLayout
+import java.awt.Toolkit
+import java.awt.datatransfer.StringSelection
 import javax.swing.BoxLayout
 import javax.swing.DefaultListModel
 import javax.swing.JButton
@@ -21,11 +27,14 @@ import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JPanel
 import javax.swing.ListSelectionModel
+import javax.swing.Timer
 
-class ReviewPanel(private val project: Project) : SimpleToolWindowPanel(true, true) {
+class ReviewPanel(private val project: Project) : SimpleToolWindowPanel(true, true), Disposable {
     private val model = project.getService(ReviewModel::class.java)
     private val fileList = JBList<FileDiff>()
     private var diffPanel: DiffRequestPanel? = null
+    private val commentLabel = JLabel("  0 comments")
+    private val commentCountTimer: Timer
 
     init {
         val toolbar = createToolbar()
@@ -49,6 +58,11 @@ class ReviewPanel(private val project: Project) : SimpleToolWindowPanel(true, tr
         splitter.secondComponent = diffPanelInstance.component
 
         setContent(splitter)
+
+        // Poll comment count every 500ms to keep the label in sync
+        commentCountTimer = Timer(500) { updateCommentCount() }
+        commentCountTimer.isRepeats = true
+        commentCountTimer.start()
     }
 
     fun populateFiles() {
@@ -57,6 +71,16 @@ class ReviewPanel(private val project: Project) : SimpleToolWindowPanel(true, tr
         fileList.model = listModel
         if (listModel.size() > 0) {
             fileList.selectedIndex = 0
+        }
+    }
+
+    fun updateCommentCount() {
+        val count = model.getCommentCount()
+        val fileCount = model.getCommentedFileCount()
+        commentLabel.text = if (count == 0) {
+            "  0 comments"
+        } else {
+            "  $count comment${if (count != 1) "s" else ""} on $fileCount file${if (fileCount != 1) "s" else ""}"
         }
     }
 
@@ -88,8 +112,6 @@ class ReviewPanel(private val project: Project) : SimpleToolWindowPanel(true, tr
             addActionListener { finishReview() }
         }
         buttonPanel.add(finishButton)
-
-        val commentLabel = JLabel("  0 comments")
         buttonPanel.add(commentLabel)
 
         panel.add(buttonPanel, BorderLayout.WEST)
@@ -97,6 +119,22 @@ class ReviewPanel(private val project: Project) : SimpleToolWindowPanel(true, tr
     }
 
     private fun finishReview() {
-        // Will be wired in Phase 5
+        val comments = model.getAllComments()
+        if (comments.isEmpty()) {
+            StartClaudeReviewAction.notify(project, "No comments to export.", NotificationType.INFORMATION)
+            return
+        }
+        val compiled = ReviewCompiler.compile(comments)
+        val clipboard = Toolkit.getDefaultToolkit().systemClipboard
+        clipboard.setContents(StringSelection(compiled), null)
+        StartClaudeReviewAction.notify(
+            project,
+            "${comments.size} comment(s) copied to clipboard.",
+            NotificationType.INFORMATION
+        )
+    }
+
+    override fun dispose() {
+        commentCountTimer.stop()
     }
 }
