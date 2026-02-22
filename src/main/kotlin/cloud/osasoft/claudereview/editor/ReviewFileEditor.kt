@@ -7,10 +7,11 @@ import com.intellij.openapi.fileEditor.FileEditorState
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.UserDataHolderBase
+import com.intellij.openapi.vfs.VirtualFile
 import java.beans.PropertyChangeListener
 import javax.swing.JComponent
 
-class ReviewFileEditor(project: Project) : UserDataHolderBase(), FileEditor {
+class ReviewFileEditor(project: Project, private val file: VirtualFile) : UserDataHolderBase(), FileEditor {
     val reviewPanel = ReviewPanel(project)
 
     init {
@@ -32,6 +33,8 @@ class ReviewFileEditor(project: Project) : UserDataHolderBase(), FileEditor {
     override fun addPropertyChangeListener(listener: PropertyChangeListener) {}
 
     override fun removePropertyChangeListener(listener: PropertyChangeListener) {}
+
+    override fun getFile(): VirtualFile = file
 
     override fun getCurrentLocation(): FileEditorLocation? = null
 

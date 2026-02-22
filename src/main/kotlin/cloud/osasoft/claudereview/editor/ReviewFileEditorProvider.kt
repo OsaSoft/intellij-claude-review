@@ -14,7 +14,7 @@ class ReviewFileEditorProvider : FileEditorProvider, DumbAware {
     }
 
     override fun createEditor(project: Project, file: VirtualFile): FileEditor {
-        return ReviewFileEditor(project)
+        return ReviewFileEditor(project, file)
     }
 
     override fun getEditorTypeId(): String = "claude-review-editor"
