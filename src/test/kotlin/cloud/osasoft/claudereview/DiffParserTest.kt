@@ -264,6 +264,25 @@ class DiffParserTest {
     }
 
     @Test
+    fun `untracked files inside directories listed individually with -u flag`() {
+        // With `git status --porcelain -u`, git expands untracked directories
+        // into individual file entries instead of collapsing them (e.g. "?? dir/")
+        val statusOutput = """
+            M  src/Existing.kt
+            ?? controller/legacy/OldApi.kt
+            ?? controller/legacy/OldService.kt
+            ?? controller/legacy/OldModel.kt
+        """.trimIndent()
+
+        val result = DiffParser.parseUntrackedFiles(statusOutput)
+
+        assertEquals(3, result.size)
+        assertEquals("controller/legacy/OldApi.kt", result[0])
+        assertEquals("controller/legacy/OldService.kt", result[1])
+        assertEquals("controller/legacy/OldModel.kt", result[2])
+    }
+
+    @Test
     fun `mixed scenario - diff modified files plus status staged-new and untracked`() {
         val diffOutput = """
             diff --git a/src/Existing.kt b/src/Existing.kt

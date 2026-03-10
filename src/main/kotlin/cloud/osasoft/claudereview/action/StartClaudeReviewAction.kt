@@ -46,7 +46,7 @@ class StartClaudeReviewAction : AnAction() {
                 val diffResult = Git.getInstance().runCommand(diffHandler)
 
                 val statusHandler = GitLineHandler(project, repo.root, GitCommand.STATUS)
-                statusHandler.addParameters("--porcelain")
+                statusHandler.addParameters("--porcelain", "-u")
                 val statusResult = Git.getInstance().runCommand(statusHandler)
 
                 if (!diffResult.success() && !statusResult.success()) {
