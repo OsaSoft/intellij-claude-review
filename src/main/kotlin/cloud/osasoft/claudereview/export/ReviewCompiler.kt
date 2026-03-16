@@ -1,5 +1,6 @@
 package cloud.osasoft.claudereview.export
 
+import cloud.osasoft.claudereview.model.DiffSource
 import cloud.osasoft.claudereview.model.LineComment
 
 object ReviewCompiler {
@@ -25,5 +26,40 @@ object ReviewCompiler {
         }
 
         return sb.toString().trimEnd()
+    }
+
+    /**
+     * Compile sourced comments grouped by diff source.
+     * If only one source has comments, delegates to [compile] (no section headers).
+     * Returns an empty string when there are no comments.
+     */
+    fun compileSourced(sourcedComments: Map<DiffSource, List<LineComment>>): String {
+        val nonEmpty = sourcedComments.filter { it.value.isNotEmpty() }
+        if (nonEmpty.isEmpty()) return ""
+
+        // Single source: use flat format without section headers
+        if (nonEmpty.size == 1) {
+            return compile(nonEmpty.values.first())
+        }
+
+        val allComments = nonEmpty.values.flatten()
+        val fileCount = allComments.map { it.filePath }.distinct().size
+
+        // Order: Uncommitted first (highest sortKey), then commits newest-to-oldest
+        val ordered = nonEmpty.entries.sortedByDescending { it.key.sortKey }
+
+        return buildString {
+            appendLine("# Claude Code Review Comments")
+            appendLine("# ${allComments.size} comment(s) on $fileCount file(s)")
+
+            for ((source, comments) in ordered) {
+                appendLine()
+                appendLine("## ${source.displayName}")
+                val sorted = comments.sortedWith(compareBy({ it.filePath }, { it.lineNumber }))
+                for (comment in sorted) {
+                    appendLine("[${comment.filePath}:${comment.lineNumber}] ${comment.text}")
+                }
+            }
+        }.trimEnd()
     }
 }
