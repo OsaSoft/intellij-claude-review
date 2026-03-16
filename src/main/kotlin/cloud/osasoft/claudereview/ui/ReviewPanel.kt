@@ -220,9 +220,11 @@ class ReviewPanel(private val project: Project) : JPanel(BorderLayout()), Dispos
     }
 
     private fun loadMoreCommits() {
+        if (isLoading) return
         val repos = GitRepositoryManager.getInstance(project).repositories
         if (repos.isEmpty()) return
 
+        setLoading(true)
         val repoRoot = repos.first().root
         // Reset selection to current active source to avoid triggering switch
         sourceComboBox.selectedItem = model.getActiveSource()
@@ -236,6 +238,7 @@ class ReviewPanel(private val project: Project) : JPanel(BorderLayout()), Dispos
 
                 ApplicationManager.getApplication().invokeLater {
                     populateCommitList(commits)
+                    setLoading(false)
                 }
             }
         })

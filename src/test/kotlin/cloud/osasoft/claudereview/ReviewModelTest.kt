@@ -16,8 +16,8 @@ class ReviewModelTest : FreeSpec({
     fun createModel(): ReviewModel = ReviewModel()
 
     val uncommitted = DiffSource.Uncommitted
-    val commit1 = DiffSource.Commit("abc123", "abc1", "Fix login", "2 days ago")
-    val commit2 = DiffSource.Commit("def456", "def4", "Refactor API", "5 days ago")
+    val commit1 = DiffSource.Commit("abc123", "abc1", "Fix login", "2 days ago", 1710000000)
+    val commit2 = DiffSource.Commit("def456", "def4", "Refactor API", "5 days ago", 1709740800)
 
     "comments are scoped to active source" {
         val model = createModel()
@@ -187,8 +187,8 @@ class ReviewModelTest : FreeSpec({
         }
         threads.forEach { it.start() }
         threads.forEach { it.join(5000) }
+        threads.all { !it.isAlive } shouldBe true
 
-        // If we get here without exception, the test passes
         model.getCommentCount() shouldBe 1
     }
 })

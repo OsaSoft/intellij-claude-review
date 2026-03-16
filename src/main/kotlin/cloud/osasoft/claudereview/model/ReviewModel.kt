@@ -84,6 +84,8 @@ class ReviewModel(@Suppress("unused") private val project: Project?) {
             .mapValues { (_, lists) ->
                 lists.flatten().sortedWith(compareBy({ it.filePath }, { it.lineNumber }))
             }
+            .entries.sortedByDescending { it.key.sortKey }
+            .associate { it.key to it.value }
     }
 
     // Track loaded DiffSource objects for reconstruction in getAllSourcedComments
@@ -99,7 +101,7 @@ class ReviewModel(@Suppress("unused") private val project: Project?) {
     }
 
     fun getCommentedFileCount(): Int {
-        return comments.count { it.value.isNotEmpty() }
+        return comments.values.flatten().map { it.filePath }.distinct().size
     }
 
     @Synchronized

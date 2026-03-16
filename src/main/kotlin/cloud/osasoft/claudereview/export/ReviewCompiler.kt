@@ -45,13 +45,8 @@ object ReviewCompiler {
         val allComments = nonEmpty.values.flatten()
         val fileCount = allComments.map { it.filePath }.distinct().size
 
-        // Order: Uncommitted first, then commits in order provided
-        val ordered = nonEmpty.entries.sortedWith(compareBy {
-            when (it.key) {
-                is DiffSource.Uncommitted -> 0
-                is DiffSource.Commit -> 1
-            }
-        })
+        // Order: Uncommitted first (highest sortKey), then commits newest-to-oldest
+        val ordered = nonEmpty.entries.sortedByDescending { it.key.sortKey }
 
         return buildString {
             appendLine("# Claude Code Review Comments")

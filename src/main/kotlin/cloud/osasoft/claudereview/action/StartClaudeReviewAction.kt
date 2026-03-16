@@ -40,7 +40,7 @@ fun loadCommitList(
     count: Int,
 ): List<DiffSource.Commit> = try {
     val handler = GitLineHandler(project, repoRoot, GitCommand.LOG)
-    handler.addParameters("--format=%H%n%h%n%s%n%ar", "-$count")
+    handler.addParameters("--format=%H%n%h%n%s%n%ar%n%at", "-$count")
     if (skip > 0) {
         handler.addParameters("--skip=$skip")
     }
@@ -78,7 +78,7 @@ class StartClaudeReviewAction : AnAction() {
                 val loader = UncommittedDiffLoader()
                 val fileDiffs = loader.load(project, repo.root, indicator)
 
-                if (fileDiffs.isEmpty() && !loader.hasChanges(project, repo.root)) {
+                if (fileDiffs.isEmpty() && !loader.lastLoadHadChanges) {
                     LOG.info("No uncommitted changes found, will still open for commit browsing")
                 }
 

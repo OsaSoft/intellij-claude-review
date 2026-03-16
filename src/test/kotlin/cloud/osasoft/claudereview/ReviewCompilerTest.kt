@@ -114,7 +114,7 @@ class ReviewCompilerTest : FreeSpec({
     "compileSourced returns empty string when all sources have empty comments" {
         val result = ReviewCompiler.compileSourced(mapOf(
             DiffSource.Uncommitted to emptyList(),
-            DiffSource.Commit("abc", "abc1", "Fix", "1d ago") to emptyList()
+            DiffSource.Commit("abc", "abc1", "Fix", "1d ago", 1710000000) to emptyList()
         ))
         result shouldBe ""
     }
@@ -137,7 +137,7 @@ class ReviewCompilerTest : FreeSpec({
 
     "compileSourced with multiple sources includes section headers" {
         val uncommitted = DiffSource.Uncommitted
-        val commit = DiffSource.Commit("abc123", "abc1234", "Fix the login flow", "2 days ago")
+        val commit = DiffSource.Commit("abc123", "abc1234", "Fix the login flow", "2 days ago", 1710000000)
 
         val result = ReviewCompiler.compileSourced(mapOf(
             uncommitted to listOf(
@@ -160,7 +160,7 @@ class ReviewCompilerTest : FreeSpec({
 
     "compileSourced skips sources with no comments" {
         val uncommitted = DiffSource.Uncommitted
-        val commit = DiffSource.Commit("abc123", "abc1234", "Fix login", "2d ago")
+        val commit = DiffSource.Commit("abc123", "abc1234", "Fix login", "2d ago", 1710000000)
 
         val result = ReviewCompiler.compileSourced(mapOf(
             uncommitted to emptyList(),
@@ -177,7 +177,7 @@ class ReviewCompilerTest : FreeSpec({
     "compileSourced output does not end with trailing newline" {
         val result = ReviewCompiler.compileSourced(mapOf(
             DiffSource.Uncommitted to listOf(LineComment("A.kt", 1, "Comment")),
-            DiffSource.Commit("abc", "abc1", "Msg", "1d") to listOf(LineComment("B.kt", 2, "Comment 2"))
+            DiffSource.Commit("abc", "abc1", "Msg", "1d", 1710000000) to listOf(LineComment("B.kt", 2, "Comment 2"))
         ))
 
         result shouldBe result.trimEnd()
@@ -185,7 +185,7 @@ class ReviewCompilerTest : FreeSpec({
 
     "compileSourced puts Uncommitted section first" {
         val uncommitted = DiffSource.Uncommitted
-        val commit = DiffSource.Commit("abc123", "abc1234", "Fix", "2d ago")
+        val commit = DiffSource.Commit("abc123", "abc1234", "Fix", "2d ago", 1710000000)
 
         val result = ReviewCompiler.compileSourced(mapOf(
             commit to listOf(LineComment("B.kt", 2, "Commit comment")),

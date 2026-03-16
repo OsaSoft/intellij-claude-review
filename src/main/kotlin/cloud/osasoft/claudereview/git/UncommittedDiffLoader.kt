@@ -36,6 +36,7 @@ class UncommittedDiffLoader : DiffLoader {
 
         val diffOutput = if (diffResult.success()) diffResult.outputAsJoinedString else ""
         val statusOutput = if (statusResult.success()) statusResult.outputAsJoinedString else ""
+        lastLoadHadChanges = diffOutput.isNotBlank() || statusOutput.isNotBlank()
 
         LOG.info("Git diff HEAD collected: ${diffOutput.length} chars")
         LOG.info("Git status collected: ${statusOutput.length} chars")
@@ -51,7 +52,8 @@ class UncommittedDiffLoader : DiffLoader {
         for (parsed in parsedFiles) {
             indicator.text = "Reading ${parsed.newPath}\u2026"
 
-            if (isBinaryFile(rootPath, parsed.newPath)) {
+            val isBinary = isBinaryFile(rootPath, parsed.newPath)
+            if (isBinary) {
                 fileDiffs.add(FileDiff(parsed.newPath, "(binary file)", "(binary file)", parsed.status))
                 continue
             }
@@ -70,7 +72,6 @@ class UncommittedDiffLoader : DiffLoader {
 
             val virtualFile = when {
                 parsed.status == FileStatus.DELETED -> null
-                isBinaryFile(rootPath, parsed.newPath) -> null
                 else -> LocalFileSystem.getInstance().refreshAndFindFileByPath("$rootPath/${parsed.newPath}")
             }
 
@@ -102,23 +103,9 @@ class UncommittedDiffLoader : DiffLoader {
         return fileDiffs
     }
 
-    /**
-     * Returns true if the diff + status outputs are both blank (no uncommitted changes).
-     * Useful for the action to decide whether to show a notification.
-     */
-    fun hasChanges(project: Project, repoRoot: VirtualFile): Boolean {
-        val diffHandler = GitLineHandler(project, repoRoot, GitCommand.DIFF)
-        diffHandler.addParameters("HEAD")
-        val diffResult = Git.getInstance().runCommand(diffHandler)
-
-        val statusHandler = GitLineHandler(project, repoRoot, GitCommand.STATUS)
-        statusHandler.addParameters("--porcelain", "-u")
-        val statusResult = Git.getInstance().runCommand(statusHandler)
-
-        val diffOutput = if (diffResult.success()) diffResult.outputAsJoinedString else ""
-        val statusOutput = if (statusResult.success()) statusResult.outputAsJoinedString else ""
-        return diffOutput.isNotBlank() || statusOutput.isNotBlank()
-    }
+    /** Whether the last [load] call found any changes (diff or status output was non-blank). */
+    var lastLoadHadChanges: Boolean = false
+        private set
 
     companion object {
         fun getOldContent(project: Project, root: VirtualFile, filePath: String): String {
