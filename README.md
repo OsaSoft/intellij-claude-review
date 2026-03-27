@@ -91,7 +91,7 @@ Ctrl+Alt+R pressed
 
 | Setting | Value |
 |---|---|
-| IntelliJ Platform | 2024.1 -- 2025.3.x (`sinceBuild=241`, `untilBuild=253.*`) |
+| IntelliJ Platform | 2024.1+ (`sinceBuild=241`, no `untilBuild`) |
 | JVM target | 17 |
 | JDK toolchain | 21 |
 | Kotlin | 1.9.25 |

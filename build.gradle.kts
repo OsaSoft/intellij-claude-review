@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "cloud.osasoft.claudereview"
-version = "0.2.0"
+version = "0.2.1"
 
 repositories {
     mavenCentral()
@@ -42,6 +42,6 @@ kotlin {
 tasks {
     patchPluginXml {
         sinceBuild.set("241")
-        untilBuild.set("253.*")
+        untilBuild.set(provider { null })
     }
 }

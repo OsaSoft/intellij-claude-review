@@ -17,7 +17,7 @@ Requires JDK 21 installed. Targets JVM 17 bytecode for IntelliJ 2024.1+ compatib
 
 - **Language**: Kotlin 1.9.25
 - **Build**: Gradle with IntelliJ Platform Plugin 2.2.1 (version managed in `settings.gradle.kts`)
-- **Platform**: IntelliJ IDEA 2024.1 (sinceBuild=241, untilBuild=253.*)
+- **Platform**: IntelliJ IDEA 2024.1 (sinceBuild=241, no untilBuild)
 - **Dependencies**: Git4Idea (bundled), Kotest 5.9.1 (test)
 - **Package**: `cloud.osasoft.claudereview`
 - **Plugin ID**: `cloud.osasoft.claudereview`
