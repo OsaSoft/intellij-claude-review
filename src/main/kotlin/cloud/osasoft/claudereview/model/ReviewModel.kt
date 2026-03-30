@@ -5,13 +5,12 @@ import com.intellij.openapi.project.Project
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 
-@Service(Service.Level.PROJECT)
-class ReviewModel(@Suppress("unused") private val project: Project?) {
-    /** Test-only constructor */
-    internal constructor() : this(null)
+class WorktreeState {
     private var activeDiffSource: DiffSource = DiffSource.Uncommitted
     private val diffsBySource = ConcurrentHashMap<String, List<FileDiff>>()
     private val comments = ConcurrentHashMap<String, MutableList<LineComment>>()
+    private val loadedSources = ConcurrentHashMap<String, DiffSource>()
+    private val commentChangeListeners = CopyOnWriteArrayList<() -> Unit>()
 
     @Synchronized
     fun loadSource(source: DiffSource, diffs: List<FileDiff>) {
@@ -39,8 +38,6 @@ class ReviewModel(@Suppress("unused") private val project: Project?) {
     private fun commentKey(filePath: String): String {
         return "${activeDiffSource.id}:$filePath"
     }
-
-    private val commentChangeListeners = CopyOnWriteArrayList<() -> Unit>()
 
     fun addCommentChangeListener(listener: () -> Unit) {
         commentChangeListeners.add(listener)
@@ -88,9 +85,6 @@ class ReviewModel(@Suppress("unused") private val project: Project?) {
             .associate { it.key to it.value }
     }
 
-    // Track loaded DiffSource objects for reconstruction in getAllSourcedComments
-    private val loadedSources = ConcurrentHashMap<String, DiffSource>()
-
     @Synchronized
     fun trackSource(source: DiffSource) {
         loadedSources[source.id] = source
@@ -110,5 +104,26 @@ class ReviewModel(@Suppress("unused") private val project: Project?) {
         diffsBySource.clear()
         comments.clear()
         loadedSources.clear()
+    }
+}
+
+@Service(Service.Level.PROJECT)
+class ReviewModel(@Suppress("unused") private val project: Project?) {
+    /** Test-only constructor */
+    internal constructor() : this(null)
+
+    private val states = ConcurrentHashMap<String, WorktreeState>()
+
+    fun getOrCreateState(worktreePath: String): WorktreeState {
+        return states.computeIfAbsent(worktreePath) { WorktreeState() }
+    }
+
+    fun clearWorktree(worktreePath: String) {
+        states.remove(worktreePath)
+    }
+
+    @Synchronized
+    fun clear() {
+        states.clear()
     }
 }

@@ -1,7 +1,7 @@
 package cloud.osasoft.claudereview.ui
 
 import cloud.osasoft.claudereview.model.LineComment
-import cloud.osasoft.claudereview.model.ReviewModel
+import cloud.osasoft.claudereview.model.WorktreeState
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.ui.components.JBScrollPane
@@ -27,7 +27,7 @@ object CommentPopup {
         lineNumber: Int,
         filePath: String,
         existingComment: LineComment?,
-        model: ReviewModel,
+        state: WorktreeState,
         screenPoint: Point? = null,
         onDone: () -> Unit
     ) {
@@ -58,18 +58,18 @@ object CommentPopup {
         val saveAction = {
             val text = textArea.text.trim()
             if (text.isNotEmpty()) {
-                existingComment?.let { model.removeComment(it) }
-                model.addComment(LineComment(filePath, lineNumber, text))
+                existingComment?.let { state.removeComment(it) }
+                state.addComment(LineComment(filePath, lineNumber, text))
             } else if (existingComment != null) {
                 // Clearing the text acts as a delete
-                model.removeComment(existingComment)
+                state.removeComment(existingComment)
             }
             popup.cancel()
             onDone()
         }
 
         val deleteAction = {
-            existingComment?.let { model.removeComment(it) }
+            existingComment?.let { state.removeComment(it) }
             popup.cancel()
             onDone()
         }

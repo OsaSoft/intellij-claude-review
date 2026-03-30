@@ -1,6 +1,7 @@
 package cloud.osasoft.claudereview.ui
 
 import cloud.osasoft.claudereview.model.ReviewModel
+import cloud.osasoft.claudereview.model.WorktreeState
 import com.intellij.diff.DiffContext
 import com.intellij.diff.DiffExtension
 import com.intellij.diff.FrameDiffTool
@@ -26,6 +27,9 @@ class ReviewDiffExtension : DiffExtension() {
         val model = project.getService(ReviewModel::class.java)
 
         val filePath = request.getUserData(REVIEW_FILE_PATH_KEY) ?: return
+        val worktreePath = request.getUserData(REVIEW_WORKTREE_PATH_KEY) ?: return
+
+        val state = model.getOrCreateState(worktreePath)
 
         // Get the right-side editor (new content / "After" side)
         val editor = viewer.editor2
@@ -43,22 +47,23 @@ class ReviewDiffExtension : DiffExtension() {
                 val lineNumber = logicalPosition.line + 1 // 1-based for user display
 
                 // Check if there's already a comment on this line
-                val existingComment = model.getComments(filePath).find { it.lineNumber == lineNumber }
+                val existingComment = state.getComments(filePath).find { it.lineNumber == lineNumber }
 
-                CommentPopup.show(editor, lineNumber, filePath, existingComment, model, e.locationOnScreen) {
-                    refreshGutterIcons(editor, filePath, model)
+                CommentPopup.show(editor, lineNumber, filePath, existingComment, state, e.locationOnScreen) {
+                    refreshGutterIcons(editor, filePath, state)
                 }
             }
         })
 
         // Restore any existing comments as gutter icons
-        refreshGutterIcons(editor, filePath, model)
+        refreshGutterIcons(editor, filePath, state)
     }
 
     companion object {
         val REVIEW_FILE_PATH_KEY = Key.create<String>("claudereview.filePath")
+        val REVIEW_WORKTREE_PATH_KEY = Key.create<String>("claudereview.worktreePath")
 
-        fun refreshGutterIcons(editor: Editor, filePath: String, model: ReviewModel) {
+        fun refreshGutterIcons(editor: Editor, filePath: String, state: WorktreeState) {
             val markupModel = editor.markupModel
 
             // Remove old comment highlighters
@@ -67,7 +72,7 @@ class ReviewDiffExtension : DiffExtension() {
                 .forEach { markupModel.removeHighlighter(it) }
 
             // Add highlighters for current comments
-            for (comment in model.getComments(filePath)) {
+            for (comment in state.getComments(filePath)) {
                 val lineIndex = comment.lineNumber - 1 // 0-based for editor
                 if (lineIndex < 0 || lineIndex >= editor.document.lineCount) continue
 
@@ -81,7 +86,7 @@ class ReviewDiffExtension : DiffExtension() {
                     null,
                     HighlighterTargetArea.LINES_IN_RANGE
                 )
-                highlighter.gutterIconRenderer = CommentGutterIconRenderer(comment, editor, filePath, model)
+                highlighter.gutterIconRenderer = CommentGutterIconRenderer(comment, editor, filePath, state)
             }
         }
     }

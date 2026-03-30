@@ -1,7 +1,7 @@
 package cloud.osasoft.claudereview.ui
 
 import cloud.osasoft.claudereview.model.LineComment
-import cloud.osasoft.claudereview.model.ReviewModel
+import cloud.osasoft.claudereview.model.WorktreeState
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.editor.Editor
@@ -16,7 +16,7 @@ class CommentGutterIconRenderer(
     private val comment: LineComment,
     private val editor: Editor,
     private val filePath: String,
-    private val model: ReviewModel
+    private val state: WorktreeState
 ) : GutterIconRenderer() {
 
     override fun getIcon(): Icon {
@@ -38,8 +38,8 @@ class CommentGutterIconRenderer(
                 SwingUtilities.convertPointToScreen(point, editor.contentComponent)
                 point
             } else null
-            CommentPopup.show(editor, comment.lineNumber, filePath, comment, model, screenPoint) {
-                ReviewDiffExtension.refreshGutterIcons(editor, filePath, model)
+            CommentPopup.show(editor, comment.lineNumber, filePath, comment, state, screenPoint) {
+                ReviewDiffExtension.refreshGutterIcons(editor, filePath, state)
             }
         }
     }

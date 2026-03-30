@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "cloud.osasoft.claudereview"
-version = "0.2.1"
+version = providers.gradleProperty("pluginVersion").get()
 
 repositories {
     mavenCentral()

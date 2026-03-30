@@ -8,6 +8,7 @@ import cloud.osasoft.claudereview.model.DiffSource
 import cloud.osasoft.claudereview.model.FileDiff
 import cloud.osasoft.claudereview.model.FileStatus
 import cloud.osasoft.claudereview.model.ReviewModel
+import cloud.osasoft.claudereview.model.WorktreeState
 import com.intellij.diff.DiffContentFactory
 import com.intellij.diff.DiffManager
 import com.intellij.diff.DiffRequestPanel
@@ -22,10 +23,10 @@ import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.JBSplitter
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
-import git4idea.repo.GitRepositoryManager
 import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.Toolkit
@@ -41,8 +42,13 @@ import javax.swing.JList
 import javax.swing.JPanel
 import javax.swing.ListSelectionModel
 
-class ReviewPanel(private val project: Project) : JPanel(BorderLayout()), Disposable {
+class ReviewPanel(
+    private val project: Project,
+    private val worktreePath: String,
+    private val repoRoot: VirtualFile
+) : JPanel(BorderLayout()), Disposable {
     private val model = project.getService(ReviewModel::class.java)
+    private val state: WorktreeState = model.getOrCreateState(worktreePath)
     private val fileList = JBList<FileDiff>()
     private var diffPanel: DiffRequestPanel? = null
     private val commentLabel = JLabel("  0 comments")
@@ -69,7 +75,7 @@ class ReviewPanel(private val project: Project) : JPanel(BorderLayout()), Dispos
                 loadMoreCommits()
                 return@addActionListener
             }
-            if (selected is DiffSource && selected != model.getActiveSource()) {
+            if (selected is DiffSource && selected != state.getActiveSource()) {
                 switchSource(selected)
             }
         }
@@ -98,12 +104,12 @@ class ReviewPanel(private val project: Project) : JPanel(BorderLayout()), Dispos
         add(splitter, BorderLayout.CENTER)
 
         // Register comment change listener for live count updates
-        model.addCommentChangeListener(::updateCommentCount)
+        state.addCommentChangeListener(::updateCommentCount)
     }
 
     fun populateFiles() {
         val listModel = DefaultListModel<FileDiff>()
-        model.getFileDiffs().forEach { listModel.addElement(it) }
+        state.getFileDiffs().forEach { listModel.addElement(it) }
         fileList.model = listModel
         if (listModel.size() > 0) {
             fileList.selectedIndex = 0
@@ -130,8 +136,8 @@ class ReviewPanel(private val project: Project) : JPanel(BorderLayout()), Dispos
     }
 
     private fun updateCommentCount() {
-        val count = model.getCommentCount()
-        val fileCount = model.getCommentedFileCount()
+        val count = state.getCommentCount()
+        val fileCount = state.getCommentedFileCount()
         commentLabel.text = if (count == 0) {
             "  0 comments"
         } else {
@@ -159,6 +165,7 @@ class ReviewPanel(private val project: Project) : JPanel(BorderLayout()), Dispos
 
         val request = SimpleDiffRequest(title, oldContent, newContent, "Before", "After")
         request.putUserData(ReviewDiffExtension.REVIEW_FILE_PATH_KEY, fileDiff.filePath)
+        request.putUserData(ReviewDiffExtension.REVIEW_WORKTREE_PATH_KEY, worktreePath)
         diffPanel?.setRequest(request)
     }
 
@@ -181,8 +188,8 @@ class ReviewPanel(private val project: Project) : JPanel(BorderLayout()), Dispos
         setLoading(true)
 
         // If diffs are already cached for this source, just switch
-        if (model.hasSourceDiffs(source)) {
-            model.setActiveSource(source)
+        if (state.hasSourceDiffs(source)) {
+            state.setActiveSource(source)
             populateFiles()
             setLoading(false)
             return
@@ -190,7 +197,7 @@ class ReviewPanel(private val project: Project) : JPanel(BorderLayout()), Dispos
 
         // For uncommitted with no cached diffs (shouldn't normally happen), just switch
         if (source is DiffSource.Uncommitted) {
-            model.setActiveSource(source)
+            state.setActiveSource(source)
             populateFiles()
             setLoading(false)
             return
@@ -198,12 +205,6 @@ class ReviewPanel(private val project: Project) : JPanel(BorderLayout()), Dispos
 
         // Load committed diff on background thread
         val commit = source as DiffSource.Commit
-        val repos = GitRepositoryManager.getInstance(project).repositories
-        if (repos.isEmpty()) {
-            setLoading(false)
-            return
-        }
-        val repoRoot = repos.first().root
 
         ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Loading commit diff\u2026", true) {
             override fun run(indicator: ProgressIndicator) {
@@ -211,7 +212,7 @@ class ReviewPanel(private val project: Project) : JPanel(BorderLayout()), Dispos
                 val fileDiffs = loader.load(project, repoRoot, indicator)
 
                 ApplicationManager.getApplication().invokeLater {
-                    model.loadSource(source, fileDiffs)
+                    state.loadSource(source, fileDiffs)
                     populateFiles()
                     setLoading(false)
                 }
@@ -221,19 +222,16 @@ class ReviewPanel(private val project: Project) : JPanel(BorderLayout()), Dispos
 
     private fun loadMoreCommits() {
         if (isLoading) return
-        val repos = GitRepositoryManager.getInstance(project).repositories
-        if (repos.isEmpty()) return
 
         setLoading(true)
-        val repoRoot = repos.first().root
         // Reset selection to current active source to avoid triggering switch
-        sourceComboBox.selectedItem = model.getActiveSource()
+        sourceComboBox.selectedItem = state.getActiveSource()
 
         ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Loading more commits\u2026", true) {
             override fun run(indicator: ProgressIndicator) {
                 val commits = loadCommitList(project, repoRoot, loadedCommitCount, 10)
                 for (commit in commits) {
-                    model.trackSource(commit)
+                    state.trackSource(commit)
                 }
 
                 ApplicationManager.getApplication().invokeLater {
@@ -251,7 +249,7 @@ class ReviewPanel(private val project: Project) : JPanel(BorderLayout()), Dispos
     }
 
     private fun finishReview() {
-        val sourcedComments = model.getAllSourcedComments()
+        val sourcedComments = state.getAllSourcedComments()
         val allComments = sourcedComments.values.flatten()
         if (allComments.isEmpty()) {
             notifyClaudeReview(project, "No comments to export.", NotificationType.INFORMATION)
@@ -268,7 +266,7 @@ class ReviewPanel(private val project: Project) : JPanel(BorderLayout()), Dispos
     }
 
     override fun dispose() {
-        model.removeCommentChangeListener(::updateCommentCount)
+        state.removeCommentChangeListener(::updateCommentCount)
     }
 }
 

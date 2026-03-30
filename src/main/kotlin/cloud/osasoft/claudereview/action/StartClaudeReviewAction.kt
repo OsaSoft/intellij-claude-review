@@ -2,10 +2,12 @@ package cloud.osasoft.claudereview.action
 
 import cloud.osasoft.claudereview.git.CommitLogParser
 import cloud.osasoft.claudereview.git.UncommittedDiffLoader
+import cloud.osasoft.claudereview.git.WorktreeParser
 import cloud.osasoft.claudereview.model.DiffSource
-import cloud.osasoft.claudereview.editor.ReviewFileEditor
 import cloud.osasoft.claudereview.model.ReviewModel
+import cloud.osasoft.claudereview.model.WorktreeInfo
 import cloud.osasoft.claudereview.ui.ReviewPanel
+import cloud.osasoft.claudereview.editor.ReviewFileEditor
 import cloud.osasoft.claudereview.vfs.ReviewVirtualFile
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
@@ -18,11 +20,16 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.popup.JBPopupFactory
+import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
 import git4idea.commands.Git
 import git4idea.commands.GitCommand
 import git4idea.commands.GitLineHandler
 import git4idea.repo.GitRepositoryManager
+import javax.swing.DefaultListCellRenderer
+import javax.swing.JList
+import java.awt.Component
 
 private val LOG = logger<StartClaudeReviewAction>()
 
@@ -68,33 +75,78 @@ class StartClaudeReviewAction : AnAction() {
         }
 
         val repo = repos.first()
+        val worktrees = WorktreeParser.listWorktrees(project, repo.root)
 
+        if (worktrees.size <= 1) {
+            // Single worktree (or none detected) — open directly as before
+            val worktree = worktrees.firstOrNull()
+            val worktreePath = worktree?.path ?: repo.root.path
+            val branchName = worktree?.displayName ?: (repo.currentBranch?.name ?: "main")
+            val repoRoot = if (worktree != null) {
+                LocalFileSystem.getInstance().findFileByPath(worktree.path) ?: repo.root
+            } else {
+                repo.root
+            }
+            openWorktreeReview(project, worktreePath, branchName, repoRoot)
+        } else {
+            // Multiple worktrees — show chooser popup
+            showWorktreeChooser(project, worktrees, repo.root)
+        }
+    }
+
+    private fun showWorktreeChooser(project: Project, worktrees: List<WorktreeInfo>, fallbackRoot: VirtualFile) {
+        val popup = JBPopupFactory.getInstance().createPopupChooserBuilder(worktrees)
+            .setTitle("Select Worktree to Review")
+            .setRenderer(object : DefaultListCellRenderer() {
+                override fun getListCellRendererComponent(
+                    list: JList<*>?,
+                    value: Any?,
+                    index: Int,
+                    isSelected: Boolean,
+                    cellHasFocus: Boolean
+                ): Component {
+                    val wt = value as? WorktreeInfo
+                    val display = if (wt != null) "${wt.displayName}  (${wt.path})" else value?.toString() ?: ""
+                    return super.getListCellRendererComponent(list, display, index, isSelected, cellHasFocus)
+                }
+            })
+            .setItemChosenCallback { worktree ->
+                val repoRoot = LocalFileSystem.getInstance().findFileByPath(worktree.path) ?: fallbackRoot
+                openWorktreeReview(project, worktree.path, worktree.displayName, repoRoot)
+            }
+            .createPopup()
+
+        popup.showInFocusCenter()
+    }
+
+    private fun openWorktreeReview(project: Project, worktreePath: String, branchName: String, repoRoot: VirtualFile) {
         ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Collecting Git Diff\u2026", true) {
             override fun run(indicator: ProgressIndicator) {
                 val model = project.getService(ReviewModel::class.java)
-                model.clear()
+                val state = model.getOrCreateState(worktreePath)
+                state.clear()
 
                 // Load uncommitted changes
                 val loader = UncommittedDiffLoader()
-                val fileDiffs = loader.load(project, repo.root, indicator)
+                val fileDiffs = loader.load(project, repoRoot, indicator)
 
                 if (fileDiffs.isEmpty() && !loader.lastLoadHadChanges) {
-                    LOG.info("No uncommitted changes found, will still open for commit browsing")
+                    LOG.info("No uncommitted changes found in $worktreePath, will still open for commit browsing")
                 }
 
                 val source = DiffSource.Uncommitted
-                model.trackSource(source)
-                model.loadSource(source, fileDiffs)
+                state.trackSource(source)
+                state.loadSource(source, fileDiffs)
 
                 // Load initial commit list
                 indicator.text = "Loading commit history\u2026"
-                val commits = loadCommitList(project, repo.root, 0, 10)
+                val commits = loadCommitList(project, repoRoot, 0, 10)
                 for (commit in commits) {
-                    model.trackSource(commit)
+                    state.trackSource(commit)
                 }
 
                 ApplicationManager.getApplication().invokeLater {
-                    val reviewPanel = openReviewInEditor(project)
+                    val reviewPanel = openReviewInEditor(project, worktreePath, branchName, repoRoot)
                     reviewPanel?.populateFiles()
                     reviewPanel?.populateCommitList(commits)
                 }
@@ -102,16 +154,17 @@ class StartClaudeReviewAction : AnAction() {
         })
     }
 
-    private fun openReviewInEditor(project: Project): ReviewPanel? {
+    private fun openReviewInEditor(project: Project, worktreePath: String, branchName: String, repoRoot: VirtualFile): ReviewPanel? {
         val editorManager = FileEditorManager.getInstance(project)
 
+        // Close existing tab for the same worktree (but leave other worktree tabs open)
         for (file in editorManager.openFiles) {
-            if (file is ReviewVirtualFile) {
+            if (file is ReviewVirtualFile && file.worktreePath == worktreePath) {
                 editorManager.closeFile(file)
             }
         }
 
-        val reviewFile = ReviewVirtualFile()
+        val reviewFile = ReviewVirtualFile(worktreePath, branchName, repoRoot)
         editorManager.openFile(reviewFile, true)
 
         val editors = editorManager.getEditors(reviewFile)

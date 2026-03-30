@@ -1,6 +1,7 @@
 package cloud.osasoft.claudereview.editor
 
 import cloud.osasoft.claudereview.ui.ReviewPanel
+import cloud.osasoft.claudereview.vfs.ReviewVirtualFile
 import com.intellij.openapi.fileEditor.FileEditor
 import com.intellij.openapi.fileEditor.FileEditorLocation
 import com.intellij.openapi.fileEditor.FileEditorState
@@ -12,9 +13,11 @@ import java.beans.PropertyChangeListener
 import javax.swing.JComponent
 
 class ReviewFileEditor(project: Project, private val file: VirtualFile) : UserDataHolderBase(), FileEditor {
-    val reviewPanel = ReviewPanel(project)
+    val reviewPanel: ReviewPanel
 
     init {
+        val reviewFile = file as ReviewVirtualFile
+        reviewPanel = ReviewPanel(project, reviewFile.worktreePath, reviewFile.repoRoot)
         Disposer.register(this, reviewPanel)
     }
 
