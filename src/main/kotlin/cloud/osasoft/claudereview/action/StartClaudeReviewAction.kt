@@ -75,23 +75,30 @@ class StartClaudeReviewAction : AnAction() {
         }
 
         val repo = repos.first()
-        val worktrees = WorktreeParser.listWorktrees(project, repo.root)
 
-        if (worktrees.size <= 1) {
-            // Single worktree (or none detected) — open directly as before
-            val worktree = worktrees.firstOrNull()
-            val worktreePath = worktree?.path ?: repo.root.path
-            val branchName = worktree?.displayName ?: (repo.currentBranch?.name ?: "main")
-            val repoRoot = if (worktree != null) {
-                LocalFileSystem.getInstance().findFileByPath(worktree.path) ?: repo.root
-            } else {
-                repo.root
+        ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Detecting worktrees\u2026", true) {
+            override fun run(indicator: ProgressIndicator) {
+                val worktrees = WorktreeParser.listWorktrees(project, repo.root)
+
+                ApplicationManager.getApplication().invokeLater {
+                    if (worktrees.size <= 1) {
+                        // Single worktree (or none detected) — open directly as before
+                        val worktree = worktrees.firstOrNull()
+                        val worktreePath = worktree?.path ?: repo.root.path
+                        val branchName = worktree?.displayName ?: (repo.currentBranch?.name ?: "main")
+                        val repoRoot = if (worktree != null) {
+                            LocalFileSystem.getInstance().findFileByPath(worktree.path) ?: repo.root
+                        } else {
+                            repo.root
+                        }
+                        openWorktreeReview(project, worktreePath, branchName, repoRoot)
+                    } else {
+                        // Multiple worktrees — show chooser popup
+                        showWorktreeChooser(project, worktrees, repo.root)
+                    }
+                }
             }
-            openWorktreeReview(project, worktreePath, branchName, repoRoot)
-        } else {
-            // Multiple worktrees — show chooser popup
-            showWorktreeChooser(project, worktrees, repo.root)
-        }
+        })
     }
 
     private fun showWorktreeChooser(project: Project, worktrees: List<WorktreeInfo>, fallbackRoot: VirtualFile) {
