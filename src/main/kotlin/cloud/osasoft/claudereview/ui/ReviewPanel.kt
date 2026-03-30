@@ -57,6 +57,7 @@ class ReviewPanel(
     private var isLoading = false
     private var loadedCommitCount = 0
     private val finishButton: JButton
+    private val commentChangeListener: () -> Unit = ::updateCommentCount
 
     init {
         // Set initial button reference (before createToolbar uses it)
@@ -104,7 +105,7 @@ class ReviewPanel(
         add(splitter, BorderLayout.CENTER)
 
         // Register comment change listener for live count updates
-        state.addCommentChangeListener(::updateCommentCount)
+        state.addCommentChangeListener(commentChangeListener)
     }
 
     fun populateFiles() {
@@ -266,7 +267,7 @@ class ReviewPanel(
     }
 
     override fun dispose() {
-        state.removeCommentChangeListener(::updateCommentCount)
+        state.removeCommentChangeListener(commentChangeListener)
     }
 }
 

@@ -197,6 +197,43 @@ class ReviewModelTest : FreeSpec({
         }
     }
 
+    "WorktreeState listener management" - {
+
+        "stored lambda reference is properly removed" {
+            val state = WorktreeState()
+            var callCount = 0
+            val listener: () -> Unit = { callCount++ }
+
+            state.addCommentChangeListener(listener)
+            state.loadSource(DiffSource.Uncommitted, emptyList())
+            state.addComment(LineComment("A.kt", 1, "test"))
+            callCount shouldBe 1
+
+            state.removeCommentChangeListener(listener)
+            state.addComment(LineComment("A.kt", 2, "test2"))
+            callCount shouldBe 1 // listener was removed, should not increment
+        }
+
+        "stored lambda reference ensures identity-based removal works reliably" {
+            // Storing the listener as a val guarantees removal works regardless
+            // of Kotlin's method reference equality implementation details
+            val state = WorktreeState()
+            var callCount = 0
+            val listener: () -> Unit = { callCount++ }
+
+            state.addCommentChangeListener(listener)
+            state.addCommentChangeListener(listener) // add twice
+            state.removeCommentChangeListener(listener) // remove one
+            state.loadSource(DiffSource.Uncommitted, emptyList())
+            state.addComment(LineComment("A.kt", 1, "test"))
+            callCount shouldBe 1 // only one listener remains
+
+            state.removeCommentChangeListener(listener) // remove the other
+            state.addComment(LineComment("A.kt", 2, "test2"))
+            callCount shouldBe 1 // no listeners, count unchanged
+        }
+    }
+
     "ReviewModel worktree isolation" - {
 
         "comments in one worktree do not leak to another" {

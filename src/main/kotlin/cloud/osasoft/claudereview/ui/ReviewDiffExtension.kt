@@ -8,10 +8,12 @@ import com.intellij.diff.FrameDiffTool
 import com.intellij.diff.requests.DiffRequest
 import com.intellij.diff.requests.SimpleDiffRequest
 import com.intellij.diff.tools.simple.SimpleDiffViewer
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.ex.EditorGutterComponentEx
 import com.intellij.openapi.editor.markup.HighlighterLayer
 import com.intellij.openapi.editor.markup.HighlighterTargetArea
+import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.Key
 import java.awt.Point
 import java.awt.event.MouseAdapter
@@ -34,9 +36,9 @@ class ReviewDiffExtension : DiffExtension() {
         // Get the right-side editor (new content / "After" side)
         val editor = viewer.editor2
 
-        // Install gutter click listener on the right editor
+        // Install gutter click listener on the right editor, tied to viewer lifecycle
         val gutter = editor.gutter as? EditorGutterComponentEx ?: return
-        gutter.addMouseListener(object : MouseAdapter() {
+        val mouseListener = object : MouseAdapter() {
             override fun mouseClicked(e: MouseEvent) {
                 if (e.clickCount != 1) return
 
@@ -53,7 +55,14 @@ class ReviewDiffExtension : DiffExtension() {
                     refreshGutterIcons(editor, filePath, state)
                 }
             }
-        })
+        }
+        gutter.addMouseListener(mouseListener)
+
+        // Remove listener when viewer is disposed (covers both viewer close and plugin unload)
+        val viewerDisposable = viewer as? Disposable
+        if (viewerDisposable != null) {
+            Disposer.register(viewerDisposable, Disposable { gutter.removeMouseListener(mouseListener) })
+        }
 
         // Restore any existing comments as gutter icons
         refreshGutterIcons(editor, filePath, state)

@@ -14,6 +14,11 @@
         <notificationGroup id="ClaudeReview" displayType="BALLOON"/>
     </extensions>
 
+    <applicationListeners>
+        <listener class="cloud.osasoft.claudereview.listener.DynamicUnloadListener"
+                  topic="com.intellij.ide.plugins.DynamicPluginListener"/>
+    </applicationListeners>
+
     <actions>
         <action id="cloud.osasoft.claudereview.StartReview"
                 class="cloud.osasoft.claudereview.action.StartClaudeReviewAction"

@@ -1,6 +1,7 @@
 package cloud.osasoft.claudereview.vfs
 
 import com.intellij.openapi.vfs.VirtualFile
+// LightVirtualFile lives in util-8.jar (core platform), not testFramework.jar — stable production API
 import com.intellij.testFramework.LightVirtualFile
 
 class ReviewVirtualFile(
