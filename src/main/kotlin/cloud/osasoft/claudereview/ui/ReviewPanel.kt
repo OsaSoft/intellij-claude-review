@@ -33,6 +33,7 @@ import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
+import javax.swing.AbstractAction
 import javax.swing.BoxLayout
 import javax.swing.DefaultComboBoxModel
 import javax.swing.DefaultListModel
@@ -42,6 +43,7 @@ import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JList
 import javax.swing.JPanel
+import javax.swing.KeyStroke
 import javax.swing.ListSelectionModel
 
 class ReviewPanel(
@@ -96,6 +98,33 @@ class ReviewPanel(
                 fileList.selectedValue?.let { showDiffForFile(it) }
             }
         }
+
+        // Alt+Down / Alt+Up: navigate between changed files and focus the diff editor
+        val nextAction = object : AbstractAction("NextChangedFile") {
+            override fun actionPerformed(e: java.awt.event.ActionEvent) {
+                val size = fileList.model.size
+                if (size == 0) return
+                val next = (fileList.selectedIndex + 1).coerceAtMost(size - 1)
+                fileList.selectedIndex = next
+                fileList.ensureIndexIsVisible(next)
+                diffPanel?.component?.requestFocusInWindow()
+            }
+        }
+        val prevAction = object : AbstractAction("PrevChangedFile") {
+            override fun actionPerformed(e: java.awt.event.ActionEvent) {
+                if (fileList.model.size == 0) return
+                val prev = (fileList.selectedIndex - 1).coerceAtLeast(0)
+                fileList.selectedIndex = prev
+                fileList.ensureIndexIsVisible(prev)
+                diffPanel?.component?.requestFocusInWindow()
+            }
+        }
+        val inputMap = fileList.getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)
+        inputMap.put(KeyStroke.getKeyStroke("alt DOWN"), "NextChangedFile")
+        inputMap.put(KeyStroke.getKeyStroke("alt UP"), "PrevChangedFile")
+        fileList.actionMap.put("NextChangedFile", nextAction)
+        fileList.actionMap.put("PrevChangedFile", prevAction)
+
         splitter.firstComponent = JBScrollPane(fileList)
 
         // Right: diff viewer
