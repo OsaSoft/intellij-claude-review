@@ -1,11 +1,22 @@
 package cloud.osasoft.claudereview.model
 
+import cloud.osasoft.claudereview.persistence.ReviewPersistence
 import com.intellij.openapi.components.Service
+import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 
-class WorktreeState {
+/**
+ * Callback invoked by WorktreeState after any comment mutation.
+ * Receives the full comment snapshot keyed by "${sourceId}:${filePath}".
+ * Used by ReviewModel to persist comments without WorktreeState depending on persistence APIs.
+ */
+typealias CommentPersistCallback = (commentsByKey: Map<String, List<LineComment>>) -> Unit
+
+class WorktreeState(
+    private val onCommentsChanged: CommentPersistCallback = {}
+) {
     private var activeDiffSource: DiffSource = DiffSource.Uncommitted
     private val diffsBySource = ConcurrentHashMap<String, List<FileDiff>>()
     private val comments = ConcurrentHashMap<String, MutableList<LineComment>>()
@@ -52,6 +63,7 @@ class WorktreeState {
 
     private fun fireCommentChanged() {
         commentChangeListeners.forEach { it() }
+        onCommentsChanged(comments.mapValues { it.value.toList() })
     }
 
     fun addComment(comment: LineComment) {
@@ -62,6 +74,27 @@ class WorktreeState {
     fun removeComment(comment: LineComment) {
         comments[commentKey(comment.filePath)]?.remove(comment)
         fireCommentChanged()
+    }
+
+    /**
+     * Restores previously persisted comments into this state.
+     * Called once by ReviewModel immediately after state creation.
+     */
+    internal fun restoreComments(commentsByKey: Map<String, List<LineComment>>) {
+        for ((key, list) in commentsByKey) {
+            if (list.isNotEmpty()) {
+                comments[key] = list.toMutableList()
+                val sourceId = key.substringBefore(':')
+                if (!loadedSources.containsKey(sourceId)) {
+                    val source = if (sourceId == DiffSource.Uncommitted.id) {
+                        DiffSource.Uncommitted
+                    } else {
+                        DiffSource.Commit(sourceId, sourceId.take(8), "(restored)", "", 0L)
+                    }
+                    loadedSources[sourceId] = source
+                }
+            }
+        }
     }
 
     fun getComments(filePath: String): List<LineComment> {
@@ -111,18 +144,31 @@ class WorktreeState {
 }
 
 @Service(Service.Level.PROJECT)
-class ReviewModel(@Suppress("unused") private val project: Project?) {
-    /** Test-only constructor */
+class ReviewModel(private val project: Project?) {
+    /** Test-only constructor — no persistence wired */
     internal constructor() : this(null)
 
     private val states = ConcurrentHashMap<String, WorktreeState>()
 
     fun getOrCreateState(worktreePath: String): WorktreeState {
-        return states.computeIfAbsent(worktreePath) { WorktreeState() }
+        return states.computeIfAbsent(worktreePath) { path ->
+            val persistence = project?.service<ReviewPersistence>()
+            val callback: CommentPersistCallback = if (persistence != null) {
+                { commentsByKey -> persistence.saveComments(path, commentsByKey) }
+            } else {
+                {}
+            }
+            val state = WorktreeState(callback)
+            if (persistence != null) {
+                state.restoreComments(persistence.getComments(path))
+            }
+            state
+        }
     }
 
     fun clearWorktree(worktreePath: String) {
         states.remove(worktreePath)
+        project?.service<ReviewPersistence>()?.clearWorktree(worktreePath)
     }
 
     @Synchronized

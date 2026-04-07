@@ -8,6 +8,7 @@
     <depends>Git4Idea</depends>
 
     <extensions defaultExtensionNs="com.intellij">
+        <projectService serviceImplementation="cloud.osasoft.claudereview.persistence.ReviewPersistence"/>
         <projectService serviceImplementation="cloud.osasoft.claudereview.model.ReviewModel"/>
         <diff.DiffExtension implementation="cloud.osasoft.claudereview.ui.ReviewDiffExtension"/>
         <fileEditorProvider implementation="cloud.osasoft.claudereview.editor.ReviewFileEditorProvider"/>
