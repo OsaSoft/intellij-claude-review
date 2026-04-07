@@ -42,7 +42,9 @@ import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JList
+import javax.swing.JMenuItem
 import javax.swing.JPanel
+import javax.swing.JPopupMenu
 import javax.swing.KeyStroke
 import javax.swing.ListSelectionModel
 
@@ -69,7 +71,19 @@ class ReviewPanel(
     init {
         // Set initial button reference (before createToolbar uses it)
         finishButton = JButton("Finish Review").apply {
-            addActionListener { finishReview() }
+            addActionListener {
+                val menu = JPopupMenu()
+                menu.add(JMenuItem("Copy All Comments").apply {
+                    addActionListener { exportAll() }
+                })
+                menu.add(JMenuItem("Copy Current Source").apply {
+                    addActionListener { exportCurrentSource() }
+                })
+                menu.add(JMenuItem("Copy Selected File").apply {
+                    addActionListener { exportSelectedFile() }
+                })
+                menu.show(this, 0, this.height)
+            }
         }
 
         // Initialize combo box (before createToolbar uses it)
@@ -284,7 +298,12 @@ class ReviewPanel(
         finishButton.isEnabled = !loading
     }
 
-    private fun finishReview() {
+    private fun copyToClipboard(text: String) {
+        val clipboard = Toolkit.getDefaultToolkit().systemClipboard
+        clipboard.setContents(StringSelection(text), null)
+    }
+
+    private fun exportAll() {
         val sourcedComments = state.getAllSourcedComments()
         val allComments = sourcedComments.values.flatten()
         if (allComments.isEmpty()) {
@@ -292,11 +311,47 @@ class ReviewPanel(
             return
         }
         val compiled = ReviewCompiler.compileSourced(sourcedComments)
-        val clipboard = Toolkit.getDefaultToolkit().systemClipboard
-        clipboard.setContents(StringSelection(compiled), null)
+        copyToClipboard(compiled)
         notifyClaudeReview(
             project,
             "${allComments.size} comment(s) copied to clipboard.",
+            NotificationType.INFORMATION
+        )
+    }
+
+    private fun exportCurrentSource() {
+        val source = state.getActiveSource()
+        val sourcedComments = state.getAllSourcedComments()
+        val comments = sourcedComments[source] ?: emptyList()
+        if (comments.isEmpty()) {
+            notifyClaudeReview(project, "No comments for the current source.", NotificationType.INFORMATION)
+            return
+        }
+        val compiled = ReviewCompiler.compile(comments)
+        copyToClipboard(compiled)
+        notifyClaudeReview(
+            project,
+            "${comments.size} comment(s) from \"${source.displayName}\" copied to clipboard.",
+            NotificationType.INFORMATION
+        )
+    }
+
+    private fun exportSelectedFile() {
+        val selected = fileList.selectedValue
+        if (selected == null) {
+            notifyClaudeReview(project, "No file selected.", NotificationType.INFORMATION)
+            return
+        }
+        val comments = state.getComments(selected.filePath)
+        if (comments.isEmpty()) {
+            notifyClaudeReview(project, "No comments for \"${selected.filePath}\".", NotificationType.INFORMATION)
+            return
+        }
+        val compiled = ReviewCompiler.compile(comments)
+        copyToClipboard(compiled)
+        notifyClaudeReview(
+            project,
+            "${comments.size} comment(s) for \"${selected.filePath}\" copied to clipboard.",
             NotificationType.INFORMATION
         )
     }

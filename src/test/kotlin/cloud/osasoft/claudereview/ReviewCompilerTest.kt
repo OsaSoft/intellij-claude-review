@@ -196,4 +196,26 @@ class ReviewCompilerTest : FreeSpec({
         val commitIdx = result.indexOf("## abc1234")
         (uncommittedIdx < commitIdx) shouldBe true
     }
+
+    // --- single-file subset export tests ---
+
+    "compile with subset of comments for one file produces correct output" {
+        val subset = listOf(
+            LineComment("src/Auth.kt", 15, "Add backoff"),
+            LineComment("src/Auth.kt", 42, "Missing null check")
+        )
+
+        val result = ReviewCompiler.compile(subset)
+
+        result shouldContain "# 2 comment(s) on 1 file(s)"
+        result shouldContain "[src/Auth.kt:15] Add backoff"
+        result shouldContain "[src/Auth.kt:42] Missing null check"
+        result shouldNotContain "src/Main.kt"
+    }
+
+    "compile with empty list returns empty string for single-file export" {
+        val result = ReviewCompiler.compile(emptyList())
+
+        result shouldBe ""
+    }
 })
