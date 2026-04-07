@@ -6,7 +6,6 @@ import cloud.osasoft.claudereview.model.FileStatus
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
 import git4idea.commands.Git
 import git4idea.commands.GitCommand
@@ -70,12 +69,7 @@ class UncommittedDiffLoader : DiffLoader {
                 else -> readWorkingDirFile(rootPath, parsed.newPath)
             }
 
-            val virtualFile = when {
-                parsed.status == FileStatus.DELETED -> null
-                else -> LocalFileSystem.getInstance().refreshAndFindFileByPath("$rootPath/${parsed.newPath}")
-            }
-
-            fileDiffs.add(FileDiff(parsed.newPath, oldContent, newContent, parsed.status, virtualFile))
+            fileDiffs.add(FileDiff(parsed.newPath, oldContent, newContent, parsed.status))
         }
 
         val alreadyTracked = parsedFiles.map { it.newPath }.toSet()
@@ -95,8 +89,7 @@ class UncommittedDiffLoader : DiffLoader {
             }
 
             val newContent = readWorkingDirFile(rootPath, untrackedPath)
-            val virtualFile = LocalFileSystem.getInstance().refreshAndFindFileByPath("$rootPath/$untrackedPath")
-            fileDiffs.add(FileDiff(untrackedPath, "", newContent, FileStatus.NEW, virtualFile))
+            fileDiffs.add(FileDiff(untrackedPath, "", newContent, FileStatus.NEW))
         }
 
         LOG.info("Parsed ${fileDiffs.size} file diffs")

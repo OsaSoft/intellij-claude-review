@@ -24,6 +24,7 @@ import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.testFramework.LightVirtualFile
 import com.intellij.ui.JBSplitter
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
@@ -151,11 +152,8 @@ class ReviewPanel(
         val factory = DiffContentFactory.getInstance()
 
         val oldContent = factory.create(project, fileDiff.oldContent, fileType)
-        val newContent = if (fileDiff.virtualFile != null) {
-            factory.create(project, fileDiff.virtualFile)
-        } else {
-            factory.create(project, fileDiff.newContent, fileType)
-        }
+        val lightFile = LightVirtualFile(fileDiff.filePath, fileType, fileDiff.newContent)
+        val newContent = factory.create(project, lightFile)
 
         val title = when (fileDiff.status) {
             FileStatus.NEW -> "${fileDiff.filePath} (new)"

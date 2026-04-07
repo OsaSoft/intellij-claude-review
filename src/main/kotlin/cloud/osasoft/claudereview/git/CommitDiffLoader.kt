@@ -59,7 +59,6 @@ class CommitDiffLoader(private val sha: String) : DiffLoader {
                 continue
             }
 
-            // No virtualFile for committed diffs — content is historical
             fileDiffs.add(FileDiff(parsed.newPath, oldContent, newContent, parsed.status))
         }
 
