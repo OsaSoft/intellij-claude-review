@@ -7,6 +7,7 @@ import cloud.osasoft.claudereview.git.CommitDiffLoader
 import cloud.osasoft.claudereview.model.DiffSource
 import cloud.osasoft.claudereview.model.FileDiff
 import cloud.osasoft.claudereview.model.FileStatus
+import cloud.osasoft.claudereview.model.LineComment
 import cloud.osasoft.claudereview.model.ReviewModel
 import cloud.osasoft.claudereview.model.WorktreeState
 import com.intellij.diff.DiffContentFactory
@@ -63,9 +64,11 @@ class ReviewPanel(
     private var isLoading = false
     private var loadedCommitCount = 0
     private val finishButton: JButton
+    private lateinit var commentSummaryPanel: CommentSummaryPanel
     private val commentChangeListener: () -> Unit = {
         updateCommentCount()
         fileList.repaint()
+        commentSummaryPanel.refresh()
     }
 
     init {
@@ -142,7 +145,15 @@ class ReviewPanel(
         fileList.actionMap.put("NextChangedFile", nextAction)
         fileList.actionMap.put("PrevChangedFile", prevAction)
 
-        splitter.firstComponent = JBScrollPane(fileList)
+        commentSummaryPanel = CommentSummaryPanel(state) { comment ->
+            navigateToComment(comment)
+        }
+
+        // Vertical splitter: file list on top, comment summary on bottom
+        val leftSplitter = JBSplitter(true, 0.6f)
+        leftSplitter.firstComponent = JBScrollPane(fileList)
+        leftSplitter.secondComponent = commentSummaryPanel
+        splitter.firstComponent = leftSplitter
 
         // Right: diff viewer
         val diffPanelInstance = DiffManager.getInstance().createRequestPanel(project, {}, null)
@@ -217,6 +228,45 @@ class ReviewPanel(
         request.putUserData(ReviewDiffExtension.REVIEW_FILE_PATH_KEY, fileDiff.filePath)
         request.putUserData(ReviewDiffExtension.REVIEW_WORKTREE_PATH_KEY, worktreePath)
         diffPanel?.setRequest(request)
+    }
+
+    private fun navigateToComment(comment: LineComment) {
+        val diffs = state.getFileDiffs()
+        val targetIndex = diffs.indexOfFirst { it.filePath == comment.filePath }
+        if (targetIndex == -1) return
+
+        fileList.selectedIndex = targetIndex
+
+        // Defer scroll to next EDT pass so the diff viewer has rendered
+        ApplicationManager.getApplication().invokeLater {
+            val panel = diffPanel ?: return@invokeLater
+            scrollDiffPanelToLine(panel, comment.lineNumber)
+        }
+    }
+
+    private fun scrollDiffPanelToLine(panel: DiffRequestPanel, lineNumber: Int) {
+        val component = panel.component
+        findEditorsInComponent(component).lastOrNull()?.let { editor ->
+            val lineIndex = (lineNumber - 1).coerceAtLeast(0)
+            if (lineIndex < editor.document.lineCount) {
+                editor.scrollingModel.scrollTo(
+                    com.intellij.openapi.editor.LogicalPosition(lineIndex, 0),
+                    com.intellij.openapi.editor.ScrollType.CENTER
+                )
+            }
+        }
+    }
+
+    private fun findEditorsInComponent(component: java.awt.Component): List<com.intellij.openapi.editor.Editor> {
+        val editors = mutableListOf<com.intellij.openapi.editor.Editor>()
+        com.intellij.openapi.editor.EditorFactory.getInstance().allEditors.forEach { editor ->
+            if (editor.component.isShowing &&
+                javax.swing.SwingUtilities.isDescendingFrom(editor.component, component)
+            ) {
+                editors.add(editor)
+            }
+        }
+        return editors
     }
 
     private fun createToolbar(): JComponent {
