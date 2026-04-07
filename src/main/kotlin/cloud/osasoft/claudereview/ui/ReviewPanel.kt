@@ -15,6 +15,7 @@ import com.intellij.diff.DiffRequestPanel
 import com.intellij.diff.requests.SimpleDiffRequest
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.fileTypes.FileType
 import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
@@ -152,7 +153,11 @@ class ReviewPanel(
         val factory = DiffContentFactory.getInstance()
 
         val oldContent = factory.create(project, fileDiff.oldContent, fileType)
-        val lightFile = LightVirtualFile(fileDiff.filePath, fileType, fileDiff.newContent)
+        val lightFile = if (fileDiff.status == FileStatus.NEW) {
+            LightVirtualFile(fileDiff.filePath, fileType, fileDiff.newContent)
+        } else {
+            DiffVirtualFile("$worktreePath/${fileDiff.filePath}", fileType, fileDiff.newContent)
+        }
         val newContent = factory.create(project, lightFile)
 
         val title = when (fileDiff.status) {
@@ -271,6 +276,17 @@ class ReviewPanel(
 
 private object LoadMoreSentinel {
     override fun toString() = "Load more\u2026"
+}
+
+private class DiffVirtualFile(
+    absolutePath: String,
+    fileType: FileType,
+    content: String
+) : LightVirtualFile(absolutePath, fileType, content) {
+    // LightVirtualFile.getPath() returns "//light/$name"; override so
+    // KotlinPackageAnnotator and PSI FileManager match the real project path.
+    // isInLocalFileSystem() inherited false — LineStatusTrackerManager stays quiet.
+    override fun getPath(): String = name
 }
 
 private class DiffSourceRenderer : DefaultListCellRenderer() {
