@@ -61,7 +61,10 @@ class ReviewPanel(
     private var isLoading = false
     private var loadedCommitCount = 0
     private val finishButton: JButton
-    private val commentChangeListener: () -> Unit = ::updateCommentCount
+    private val commentChangeListener: () -> Unit = {
+        updateCommentCount()
+        fileList.repaint()
+    }
 
     init {
         // Set initial button reference (before createToolbar uses it)
@@ -91,7 +94,7 @@ class ReviewPanel(
         val splitter = JBSplitter(false, 0.25f)
 
         // Left: file list
-        fileList.cellRenderer = FileListCellRenderer()
+        fileList.cellRenderer = FileListCellRenderer(state)
         fileList.selectionMode = ListSelectionModel.SINGLE_SELECTION
         fileList.addListSelectionListener { e ->
             if (!e.valueIsAdjusting) {

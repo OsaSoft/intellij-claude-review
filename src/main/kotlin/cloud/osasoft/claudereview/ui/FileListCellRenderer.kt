@@ -2,12 +2,13 @@ package cloud.osasoft.claudereview.ui
 
 import cloud.osasoft.claudereview.model.FileDiff
 import cloud.osasoft.claudereview.model.FileStatus
+import cloud.osasoft.claudereview.model.WorktreeState
 import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.ui.ColoredListCellRenderer
 import com.intellij.ui.SimpleTextAttributes
 import javax.swing.JList
 
-class FileListCellRenderer : ColoredListCellRenderer<FileDiff>() {
+class FileListCellRenderer(private val state: WorktreeState) : ColoredListCellRenderer<FileDiff>() {
     override fun customizeCellRenderer(
         list: JList<out FileDiff>,
         value: FileDiff?,
@@ -33,6 +34,12 @@ class FileListCellRenderer : ColoredListCellRenderer<FileDiff>() {
         }
         if (statusText.isNotEmpty()) {
             append(statusText, SimpleTextAttributes.GRAYED_ATTRIBUTES)
+        }
+
+        // Comment count badge
+        val commentCount = state.getComments(value.filePath).size
+        if (commentCount > 0) {
+            append(" ($commentCount)", SimpleTextAttributes.GRAYED_ATTRIBUTES)
         }
 
         toolTipText = value.filePath
