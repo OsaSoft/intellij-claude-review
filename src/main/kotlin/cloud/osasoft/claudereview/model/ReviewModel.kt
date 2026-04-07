@@ -25,16 +25,19 @@ class WorktreeState {
         loadedSources[source.id] = source
     }
 
+    @Synchronized
     fun getActiveSource(): DiffSource = activeDiffSource
 
     fun hasSourceDiffs(source: DiffSource): Boolean {
         return diffsBySource.containsKey(source.id)
     }
 
+    @Synchronized
     fun getFileDiffs(): List<FileDiff> {
         return diffsBySource[activeDiffSource.id] ?: emptyList()
     }
 
+    @Synchronized
     private fun commentKey(filePath: String): String {
         return "${activeDiffSource.id}:$filePath"
     }
