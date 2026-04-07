@@ -18,6 +18,8 @@ import com.intellij.openapi.util.Key
 import java.awt.Point
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
+import javax.swing.JMenuItem
+import javax.swing.JPopupMenu
 import javax.swing.SwingUtilities
 
 class ReviewDiffExtension : DiffExtension() {
@@ -48,11 +50,34 @@ class ReviewDiffExtension : DiffExtension() {
                 val logicalPosition = editor.xyToLogicalPosition(pointInEditor)
                 val lineNumber = logicalPosition.line + 1 // 1-based for user display
 
-                // Check if there's already a comment on this line
                 val existingComment = state.getComments(filePath).find { it.lineNumber == lineNumber }
 
-                CommentPopup.show(editor, lineNumber, filePath, existingComment, state, e.locationOnScreen) {
-                    refreshGutterIcons(editor, filePath, state)
+                if (existingComment != null) {
+                    // Comment exists: right-click shows Edit/Delete menu, left-click does nothing
+                    if (SwingUtilities.isRightMouseButton(e)) {
+                        val menu = JPopupMenu()
+                        menu.add(JMenuItem("Edit Comment").apply {
+                            addActionListener {
+                                CommentPopup.show(editor, lineNumber, filePath, existingComment, state, e.locationOnScreen) {
+                                    refreshGutterIcons(editor, filePath, state)
+                                }
+                            }
+                        })
+                        menu.add(JMenuItem("Delete Comment").apply {
+                            addActionListener {
+                                state.removeComment(existingComment)
+                                refreshGutterIcons(editor, filePath, state)
+                            }
+                        })
+                        menu.show(gutter, e.x, e.y)
+                    }
+                } else {
+                    // No comment: left-click opens new comment popup
+                    if (SwingUtilities.isLeftMouseButton(e)) {
+                        CommentPopup.show(editor, lineNumber, filePath, null, state, e.locationOnScreen) {
+                            refreshGutterIcons(editor, filePath, state)
+                        }
+                    }
                 }
             }
         }
