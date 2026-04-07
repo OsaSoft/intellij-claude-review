@@ -1,5 +1,6 @@
 package cloud.osasoft.claudereview.ui
 
+import cloud.osasoft.claudereview.model.CommentSeverity
 import cloud.osasoft.claudereview.model.LineComment
 import cloud.osasoft.claudereview.model.WorktreeState
 import com.intellij.openapi.actionSystem.AnAction
@@ -23,7 +24,13 @@ class CommentGutterIconRenderer(
         }
     }
 
-    override fun getTooltipText(): String = comment.text
+    override fun getTooltipText(): String {
+        return if (comment.severity != CommentSeverity.ISSUE) {
+            "[${comment.severity.name.lowercase()}] ${comment.text}"
+        } else {
+            comment.text
+        }
+    }
 
     // Left-click on gutter icon does nothing; editing is via right-click context menu on the gutter
     override fun getClickAction(): AnAction? = null

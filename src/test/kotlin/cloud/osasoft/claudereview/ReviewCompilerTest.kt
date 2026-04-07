@@ -2,6 +2,7 @@ package cloud.osasoft.claudereview
 
 import cloud.osasoft.claudereview.export.ReviewCompiler
 import cloud.osasoft.claudereview.model.DiffSource
+import cloud.osasoft.claudereview.model.CommentSeverity
 import cloud.osasoft.claudereview.model.LineComment
 import io.kotest.core.spec.style.FreeSpec
 import io.kotest.matchers.collections.shouldHaveSize
@@ -217,5 +218,55 @@ class ReviewCompilerTest : FreeSpec({
         val result = ReviewCompiler.compile(emptyList())
 
         result shouldBe ""
+    }
+
+    // --- severity tests ---
+
+    "compile ISSUE severity produces no prefix tag" {
+        val comments = listOf(
+            LineComment("src/Main.kt", 10, "Rename this", CommentSeverity.ISSUE)
+        )
+        val result = ReviewCompiler.compile(comments)
+        result shouldContain "[src/Main.kt:10] Rename this"
+        result shouldNotContain "[issue]"
+    }
+
+    "compile SUGGESTION severity prefixes line with [suggestion]" {
+        val comments = listOf(
+            LineComment("src/Main.kt", 42, "Consider extracting this", CommentSeverity.SUGGESTION)
+        )
+        val result = ReviewCompiler.compile(comments)
+        result shouldContain "[src/Main.kt:42] [suggestion] Consider extracting this"
+    }
+
+    "compile QUESTION severity prefixes line with [question]" {
+        val comments = listOf(
+            LineComment("src/Api.kt", 15, "Is this retry intentional?", CommentSeverity.QUESTION)
+        )
+        val result = ReviewCompiler.compile(comments)
+        result shouldContain "[src/Api.kt:15] [question] Is this retry intentional?"
+    }
+
+    "compile NITPICK severity prefixes line with [nitpick]" {
+        val comments = listOf(
+            LineComment("src/Foo.kt", 20, "Trailing whitespace", CommentSeverity.NITPICK)
+        )
+        val result = ReviewCompiler.compile(comments)
+        result shouldContain "[src/Foo.kt:20] [nitpick] Trailing whitespace"
+    }
+
+    "compile mixes severities correctly in output" {
+        val comments = listOf(
+            LineComment("src/Foo.kt", 10, "Rename variable", CommentSeverity.ISSUE),
+            LineComment("src/Foo.kt", 20, "Extract method?", CommentSeverity.SUGGESTION),
+            LineComment("src/Foo.kt", 30, "Intentional?", CommentSeverity.QUESTION),
+            LineComment("src/Foo.kt", 40, "Trailing space", CommentSeverity.NITPICK)
+        )
+        val result = ReviewCompiler.compile(comments)
+        val lines = result.lines().filter { it.startsWith("[") }
+        lines[0] shouldBe "[src/Foo.kt:10] Rename variable"
+        lines[1] shouldBe "[src/Foo.kt:20] [suggestion] Extract method?"
+        lines[2] shouldBe "[src/Foo.kt:30] [question] Intentional?"
+        lines[3] shouldBe "[src/Foo.kt:40] [nitpick] Trailing space"
     }
 })

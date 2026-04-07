@@ -1,5 +1,6 @@
 package cloud.osasoft.claudereview.export
 
+import cloud.osasoft.claudereview.model.CommentSeverity
 import cloud.osasoft.claudereview.model.DiffSource
 import cloud.osasoft.claudereview.model.LineComment
 
@@ -22,7 +23,7 @@ object ReviewCompiler {
         sb.appendLine()
 
         for (comment in sorted) {
-            sb.appendLine("[${comment.filePath}:${comment.lineNumber}] ${comment.text}")
+            sb.appendLine(formatComment(comment))
         }
 
         return sb.toString().trimEnd()
@@ -57,9 +58,18 @@ object ReviewCompiler {
                 appendLine("## ${source.displayName}")
                 val sorted = comments.sortedWith(compareBy({ it.filePath }, { it.lineNumber }))
                 for (comment in sorted) {
-                    appendLine("[${comment.filePath}:${comment.lineNumber}] ${comment.text}")
+                    appendLine(formatComment(comment))
                 }
             }
         }.trimEnd()
+    }
+
+    private fun formatComment(comment: LineComment): String {
+        val prefix = if (comment.severity != CommentSeverity.ISSUE) {
+            "[${comment.severity.name.lowercase()}] "
+        } else {
+            ""
+        }
+        return "[${comment.filePath}:${comment.lineNumber}] $prefix${comment.text}"
     }
 }
