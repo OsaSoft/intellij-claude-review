@@ -25,8 +25,8 @@ import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
-import com.intellij.testFramework.LightVirtualFile
 import com.intellij.ui.JBSplitter
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
@@ -210,12 +210,17 @@ class ReviewPanel(
         val factory = DiffContentFactory.getInstance()
 
         val oldContent = factory.create(project, fileDiff.oldContent, fileType)
-        val lightFile = if (fileDiff.status == FileStatus.NEW) {
-            LightVirtualFile(fileDiff.filePath, fileType, fileDiff.newContent)
+        val activeSource = state.getActiveSource()
+        val newContent = if (activeSource is DiffSource.Uncommitted && fileDiff.status != FileStatus.DELETED) {
+            val realFile = LocalFileSystem.getInstance().findFileByPath("$worktreePath/${fileDiff.filePath}")
+            if (realFile != null) {
+                factory.create(project, realFile)
+            } else {
+                factory.create(project, fileDiff.newContent, fileType)
+            }
         } else {
-            DiffVirtualFile("$worktreePath/${fileDiff.filePath}", fileType, fileDiff.newContent)
+            factory.create(project, fileDiff.newContent, fileType)
         }
-        val newContent = factory.create(project, lightFile)
 
         val title = when (fileDiff.status) {
             FileStatus.NEW -> "${fileDiff.filePath} (new)"
@@ -413,17 +418,6 @@ class ReviewPanel(
 
 private object LoadMoreSentinel {
     override fun toString() = "Load more\u2026"
-}
-
-private class DiffVirtualFile(
-    absolutePath: String,
-    fileType: FileType,
-    content: String
-) : LightVirtualFile(absolutePath, fileType, content) {
-    // LightVirtualFile.getPath() returns "//light/$name"; override so
-    // KotlinPackageAnnotator and PSI FileManager match the real project path.
-    // isInLocalFileSystem() inherited false — LineStatusTrackerManager stays quiet.
-    override fun getPath(): String = name
 }
 
 private class DiffSourceRenderer : DefaultListCellRenderer() {
